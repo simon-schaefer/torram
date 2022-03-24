@@ -141,7 +141,7 @@ class Trainer:  # pragma: no cover
 
     def validation_step(self, model_output, batch, global_step: int):
         self.model.eval()
-        metrics_dict = self.evaluator(model_output, batch, reduce_mean=True)
+        metrics_dict = self.evaluator(batch, model_output, reduce_mean=True)
         self.logger.add_scalar_dict("metrics/train", metrics_dict, global_step=global_step)
         if hasattr(self.model, "log_values"):
             self.model.log_values(batch, model_output, self.logger, global_step=global_step)
