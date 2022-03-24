@@ -1,0 +1,13 @@
+# Python cache.
+*.egg-info
+
+# Testing cache.
+.benchmarks/
+.pytest_cache/
+.coverage
+htmlcov/
+tests/assets/cache/
+
+# Editor.
+.idea/
+.vscode/

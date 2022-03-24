@@ -1,0 +1,64 @@
+import kornia
+import pytest
+import torch
+import torram
+
+
+@pytest.mark.parametrize("shape", [(4, 2), (4, 1, 3, 1), (8,)])
+def test_inverse_transformation(shape):
+    q = torch.rand((*shape, 3), dtype=torch.float32)
+    t = torch.rand((*shape, 3), dtype=torch.float32)
+
+    T = torch.zeros((*shape, 4, 4), dtype=torch.float32)
+    T[..., :3, :3] = kornia.geometry.angle_axis_to_rotation_matrix(q.view(-1, 3)).view((*shape, 3, 3))
+    T[..., :3, 3] = t
+    T[..., 3, 3] = 1.0
+
+    T_inv = torram.geometry.inverse_transformation(T)
+    T_hat = torram.geometry.inverse_transformation(T_inv)
+    assert torch.allclose(T_hat, T, atol=1e-4)
+
+
+@pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
+def test_angle_axis_to_rotation_matrix(shape):
+    x3d = torch.rand(shape)
+    R_hat = torram.geometry.angle_axis_to_rotation_matrix(x3d)
+    x3d_flat = torch.flatten(x3d, end_dim=-2)
+    R = kornia.geometry.angle_axis_to_rotation_matrix(x3d_flat)
+    assert torch.allclose(torch.flatten(R_hat, end_dim=-3), R)
+
+
+@pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
+def test_rotation_6d_and_angle_axis(shape):
+    x3d = torch.rand(shape)
+    x6d = torram.geometry.angle_axis_to_rotation_6d(x3d)
+    x3d_hat = torram.geometry.rotation_6d_to_axis_angle(x6d)
+    assert torch.allclose(x3d_hat, x3d_hat)
+
+
+def test_rotation_matrix_to_quaternion_grad_not_nan():
+    R = torch.tensor([[1, 0, 0],
+                      [0, -1, 0],
+                      [0, 0, -1]], dtype=torch.float32, requires_grad=True)
+    R2 = R * 0.99999
+    q = kornia.geometry.rotation_matrix_to_quaternion(R2)
+    grad, = torch.autograd.grad(q.sum(), R)
+    assert not torch.any(torch.isnan(grad))
+
+
+@pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
+def test_rotation_6d_rotation_matrix(shape):
+    x3d = torch.rand(shape)
+    R = torram.geometry.angle_axis_to_rotation_matrix(x3d)
+    x6d_hat = torram.geometry.rotation_matrix_to_rotation_6d(R)
+    R_hat = torram.geometry.rotation_6d_to_rotation_matrix(x6d_hat)
+    assert torch.allclose(R_hat, R, rtol=1e-3, atol=1e-4)
+
+
+@pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
+def test_rotation_6d_cross_transforms(shape):
+    x3d = torch.rand(shape)
+    x6d = torram.geometry.angle_axis_to_rotation_6d(x3d)
+    R = torram.geometry.angle_axis_to_rotation_matrix(x3d)
+    x6d_hat = torram.geometry.rotation_matrix_to_rotation_6d(R)
+    assert torch.allclose(x6d_hat, x6d)
