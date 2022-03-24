@@ -1,16 +1,16 @@
 import kornia
 import torch
+import kornia.geometry.conversions
 from kornia.geometry import (
     angle_axis_to_quaternion,
     convert_points_to_homogeneous,
-    quaternion_to_rotation_matrix,
     quaternion_to_angle_axis,
     rotation_matrix_to_quaternion,
     rotation_matrix_to_angle_axis,
     transform_points
 )
 from torch.nn import functional as F
-
+import warnings
 
 __all__ = ['angle_axis_to_quaternion',
            'angle_axis_to_rotation_matrix',
@@ -28,6 +28,16 @@ __all__ = ['angle_axis_to_quaternion',
            'transform_points',
            'convert_points_to_homogeneous'
            ]
+
+
+def quaternion_to_rotation_matrix(q: torch.Tensor) -> torch.Tensor:
+    norm_q = q.norm(dim=1, keepdim=True)
+    q_normed = q / norm_q
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
+        rotmat = kornia.geometry.quaternion_to_rotation_matrix(q_normed, order=q_order)
+    return rotmat
 
 
 def rotation_6d_to_rotation_matrix(x):
