@@ -86,9 +86,9 @@ class Trainer:  # pragma: no cover
         self.log_steps = {"train": log_steps_train, "val": log_steps_val, "test": log_steps_test}
         if log_directory is not None:
             log_dir = os.path.join(log_directory, self.log_name)
-            self.logger = torram.utility.TensorboardY(log_dir)
+            self.logger = torram.utility.logger.TensorboardY(log_dir)
         else:
-            self.logger = torram.utility.LogLogger()
+            self.logger = torram.utility.logger.LogLogger()
 
     ###################################################################################################################
     # Training Pipeline ###############################################################################################

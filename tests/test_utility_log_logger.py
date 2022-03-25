@@ -6,7 +6,7 @@ def test_add_scalar():
     information = []
     logging.info = lambda x: information.append(x)  # mock logging module
 
-    logger = torram.utility.LogLogger()
+    logger = torram.utility.logger.LogLogger()
     logger.add_scalar("test1", 5, global_step=1)
     logger.add_scalar("test2", "2", global_step=2)
     assert len(information) == 2
@@ -18,7 +18,7 @@ def test_add_scalar_dict():
     information = []
     logging.info = lambda x: information.append(x)  # mock logging module
 
-    logger = torram.utility.LogLogger()
+    logger = torram.utility.logger.LogLogger()
     scalar_dict = {"a": 1, "b": 2}
     logger.add_scalar_dict("test", scalar_dict, global_step=1)
     assert len(information) == 2
@@ -27,6 +27,6 @@ def test_add_scalar_dict():
 
 
 def test_no_error_other_function():
-    logger = torram.utility.LogLogger()
+    logger = torram.utility.logger.LogLogger()
     logger.add_image("test", None, global_step=5)
     logger.add_histogram("test", None, global_step=5)
