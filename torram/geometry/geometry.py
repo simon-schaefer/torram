@@ -41,13 +41,13 @@ def quaternion_to_rotation_matrix(q: torch.Tensor) -> torch.Tensor:
     Return:
         the rotation matrix of shape :math:`(B, 3, 3)`.
     """
-    norm_q = q.norm(dim=1, keepdim=True)
-    q_normed = q / norm_q
+    shape = q.shape[:-1]
+    q_flat = torch.flatten(q, end_dim=-2)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
-        rotmat = kornia.geometry.quaternion_to_rotation_matrix(q_normed, order=q_order)
-    return rotmat
+        rotmat_flat = kornia.geometry.quaternion_to_rotation_matrix(q_flat, order=q_order)
+    return rotmat_flat.view(*shape, 3, 3)
 
 
 def quaternion_to_angle_axis(q: torch.Tensor) -> torch.Tensor:
@@ -62,13 +62,13 @@ def quaternion_to_angle_axis(q: torch.Tensor) -> torch.Tensor:
     Return:
         tensor with angle axis of rotation.
     """
-    norm_q = q.norm(dim=1, keepdim=True)
-    q_normed = q / norm_q
+    shape = q.shape[:-1]
+    q_flat = torch.flatten(q, end_dim=-2)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
-        angle_axis = kornia.geometry.quaternion_to_angle_axis(q_normed, order=q_order)
-    return angle_axis
+        angle_axis_flat = kornia.geometry.quaternion_to_angle_axis(q_flat, order=q_order)
+    return angle_axis_flat.view(*shape, 3)
 
 
 def angle_axis_to_quaternion(angle_axis: torch.Tensor) -> torch.Tensor:
@@ -83,11 +83,13 @@ def angle_axis_to_quaternion(angle_axis: torch.Tensor) -> torch.Tensor:
     Return:
         tensor with quaternion (B, 4)
     """
+    shape = angle_axis.shape[:-1]
+    aa_flat = torch.flatten(angle_axis, end_dim=-2)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
-        quaternion = kornia.geometry.angle_axis_to_quaternion(angle_axis, order=q_order)
-    return quaternion    
+        quaternion_flat = kornia.geometry.angle_axis_to_quaternion(aa_flat, order=q_order)
+    return quaternion_flat.view(*shape, 4)
 
 
 def rotation_matrix_to_quaternion(rotation_matrix: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
@@ -99,11 +101,13 @@ def rotation_matrix_to_quaternion(rotation_matrix: torch.Tensor, eps: float = 1e
     Return:
         the rotation in quaternion with shape :math:`(B, 4)`.
     """
+    shape = rotation_matrix.shape[:-2]
+    rotmat_flat = torch.flatten(rotation_matrix, end_dim=-3)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
-        quaternion = kornia.geometry.rotation_matrix_to_quaternion(rotation_matrix, order=q_order, eps=eps)
-    return quaternion
+        quaternion_flat = kornia.geometry.rotation_matrix_to_quaternion(rotmat_flat, order=q_order, eps=eps)
+    return quaternion_flat.view(*shape, 4)
 
 
 def rotation_6d_to_rotation_matrix(x: torch.Tensor) -> torch.Tensor:
