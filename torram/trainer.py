@@ -102,6 +102,7 @@ class Trainer:  # pragma: no cover
         steps_cache = collections.defaultdict(int)
         loss_cache = collections.defaultdict(int)
 
+        self.model.train()
         while global_step < num_global_steps:
             self.logger.add_scalar("epoch", epoch, global_step=global_step)
             timer = torram.utility.Timer()
@@ -188,6 +189,7 @@ class Trainer:  # pragma: no cover
             model_output = self.forward_batch(vis_batch)
 
         loss_dict = self.model.compute_loss(vis_batch, model_output)
+        self.logger.add_scalar_dict("loss/test", loss_dict, global_step=global_step)
         self.logger.add_scalar("loss/test", sum(loss_dict.values()), global_step=global_step)
         if hasattr(self.model, "visualize"):
             vis_prefix = f"{self.log_name}/"

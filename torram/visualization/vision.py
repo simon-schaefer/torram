@@ -16,16 +16,16 @@ def draw_reprojection(pc_C: torch.Tensor, image: torch.Tensor, K: torch.Tensor,
     """Re-Project a point cloud in the camera frame to the image plane and draw the points.
 
     Args:
-        pc_C: point cloud in camera frame (B, N, 3).
+        pc_C: point cloud in camera frame (N, 3).
         image: base image to color pixels in.
-        K: camera intrinsics for re-projection (B, 3, 3).
+        K: camera intrinsics for re-projection (3, 3).
         color: color of colored pixels, either as RGB tuple or hex color (uniform color).
     """
-    if pc_C.ndim != 3 or pc_C.shape[-1] != 3:
+    if pc_C.ndim != 2 or pc_C.shape[-1] != 3:
         raise ValueError(f"Point clouds have invalid shape, expected (B, N, 3), got {pc_C.shape}")
-    if not K.shape[-1] == K.shape[-2] == 3 or K.ndim != 3:
-        raise ValueError(f"Intrinsics have invalid shape, expected (B, 3, 3), got {K.shape}")
-    K_point_cloud = K[..., None, :, :]
+    if K.shape != (3, 3):
+        raise ValueError(f"Intrinsics have invalid shape, expected (3, 3), got {K.shape}")
+    K_point_cloud = K[None, :, :]
     pc_projections = kornia.geometry.project_points(pc_C, camera_matrix=K_point_cloud).long()  # int image coordinates
     return draw_keypoints(image.detach().cpu(), pc_projections[None], colors=color)
 
