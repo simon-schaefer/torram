@@ -8,7 +8,7 @@ import torch.nn.functional
 import torch.utils.data
 
 from torch.utils.data import Dataset
-from typing import Dict, Protocol
+from typing import Dict, Optional, Protocol
 
 
 class ModelProtocol(Protocol):  # pragma: no cover
@@ -32,38 +32,68 @@ class ModelProtocol(Protocol):  # pragma: no cover
 class Trainer:  # pragma: no cover
 
     def __init__(self, model: ModelProtocol, ds_train: Dataset, ds_test: Dataset, device: torch.device,
-                 config: torram.utility.Config = torram.utility.Config.empty()):
+                 batch_size_train: int = 24, batch_size_test: int = 8, pin_memory: bool = True, num_workers: int = 4,
+                 learning_rate: float = 0.0001, log_level: int = 30, log_directory: Optional[str] = None,
+                 log_steps_train: int = 100, log_steps_val: int = 500, log_steps_test: int = 5000):
+        """Generic neural network trainer based on the instructions implemented in the model.
+
+        This trainer class implements the boilerplate required to train most models in PyTorch, such as
+        data loading, back-propagation, validation/testing steps, model storing. All model-specific functions
+        are implemented in the model (see ModelProtocol).
+
+        >>> modelx = ...
+        >>> dataset_train, dataset_test = ...
+        >>> trainer = Trainer(modelx, dataset_train, dataset_test, device=device, ...)
+        >>> trainer.fit()
+
+        Args:
+            model: model to train, see ModelProtocol.
+            ds_train: training dataset, subclass of torch.utils.data.Dataset. also used for "validation".
+            ds_test: testing dataset, subclass of torch.utils.data.Dataset.
+            device: training device.
+            batch_size_train: training batch size, see torch.utils.data.DataLoader.
+            batch_size_test: testing batch size, see torch.utils.data.DataLoader.
+            pin_memory: reserve memory on device, see torch.utils.data.DataLoader.
+            num_workers: number of workers for training data loading, see torch.utils.data.DataLoader.
+            learning_rate: (constant) learning rate.
+            log_level: logging level (DEBUG = 10, INFO = 20, WARNING = 30).
+            log_directory: path to where logs and model should be stored, logging to terminal when None.
+            log_steps_train: number of global training steps between logging training data (loss, runtime, etc.).
+            log_steps_val: number of global training steps between validation run.
+            log_steps_test: number of global training steps between testing run.
+        """
         if not isinstance(model, torch.nn.Module):
             raise ValueError("Invalid input model, must be torch.nn.Module")
-        self.config = config
         self.model = model
         self.device = device
 
         self.train_data_loader = torch.utils.data.DataLoader(ds_train,
-                                                             batch_size=config.get("data/batch_size/train", 24),
+                                                             batch_size=batch_size_train,
                                                              shuffle=True,
-                                                             num_workers=config.get("data/num_workers", 4),
-                                                             pin_memory=config.get("data/pin_memory", True))
+                                                             num_workers=num_workers,
+                                                             pin_memory=pin_memory)
         self.test_data_loader = torch.utils.data.DataLoader(ds_test,
-                                                            batch_size=config.get("data/batch_size/test", 8),
+                                                            batch_size=batch_size_test,
                                                             shuffle=True,
-                                                            pin_memory=config.get("data/pin_memory", True))
+                                                            pin_memory=pin_memory)
 
         self.evaluator = torram.utility.EvaluatorFactory(model.evaluate, device=device)
-        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=config.get("hp/learning_rate", 0.00001))
+        self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
 
         self.log_name = randomname.get_name()
-        log_level = config.get("logging/log_level", 30)  # DEBUG = 10, INFO = 20
-        log_directory = config.get("logging/log_directory", required=True)
         log_format = '[%(asctime)s.%(msecs)03d %(levelname)s] %(message)s'
         logging.basicConfig(format=log_format, datefmt='%H:%M:%S', level=log_level)
-        log_dir = os.path.join(log_directory, self.log_name)
-        self.logger = torram.utility.TensorboardY(log_dir)
+        self.log_steps = {"train": log_steps_train, "val": log_steps_val, "test": log_steps_test}
+        if log_directory is not None:
+            log_dir = os.path.join(log_directory, self.log_name)
+            self.logger = torram.utility.TensorboardY(log_dir)
+        else:
+            self.logger = torram.utility.LogLogger()
 
     ###################################################################################################################
     # Training Pipeline ###############################################################################################
     ###################################################################################################################
-    def fit(self, num_global_steps: int):
+    def fit(self, num_global_steps: int = 10000):
         global_step = 0
         epoch = 0
         batch_size = self.train_data_loader.batch_size
@@ -100,7 +130,7 @@ class Trainer:  # pragma: no cover
                 self.optimizer.step()
                 timer.log_dt("model-backward-pass")
 
-                if steps_cache["log"] - self.config.get("logging/log_steps", 100) > 0:
+                if steps_cache["log"] - self.log_steps['train'] > 0:
                     value_count = steps_cache["log"] / batch_size
                     steps_cache["log"] = 0
 
@@ -115,13 +145,13 @@ class Trainer:  # pragma: no cover
                     loss_cache = collections.defaultdict(int)
                     timer.log_dt("logging-log-data")
 
-                if steps_cache["val"] - self.config.get("logging/val_steps", 500) > 0:
+                if steps_cache["val"] - self.log_steps['val'] > 0:
                     steps_cache["val"] = 0
                     with torch.no_grad():
                         self.validation_step(model_output, batch, global_step=global_step)
                         timer.log_dt("evaluating-val-data")
 
-                if steps_cache["test"] - self.config.get("logging/test_steps", 5000) > 0:
+                if steps_cache["test"] - self.log_steps['test'] > 0:
                     steps_cache["test"] = 0
                     with torch.no_grad():
                         self.test_step(global_step=global_step)
