@@ -2,10 +2,7 @@ import kornia
 import torch
 import kornia.geometry.conversions
 from kornia.geometry import (
-    angle_axis_to_quaternion,
     convert_points_to_homogeneous,
-    quaternion_to_angle_axis,
-    rotation_matrix_to_quaternion,
     rotation_matrix_to_angle_axis,
     transform_points
 )
@@ -31,6 +28,19 @@ __all__ = ['angle_axis_to_quaternion',
 
 
 def quaternion_to_rotation_matrix(q: torch.Tensor) -> torch.Tensor:
+    """Convert a quaternion (x, y, z, w) to a rotation matrix.
+
+    >>> quaternion = torch.tensor((0., 0., 0., 1.))
+    >>> quaternion_to_rotation_matrix(quaternion)
+    tensor([[-1.,  0.,  0.],
+            [ 0., -1.,  0.],
+            [ 0.,  0.,  1.]])
+
+    Args:
+        q: a tensor containing a quaternion to be converted (B, 4).
+    Return:
+        the rotation matrix of shape :math:`(B, 3, 3)`.
+    """
     norm_q = q.norm(dim=1, keepdim=True)
     q_normed = q / norm_q
     with warnings.catch_warnings():
@@ -40,7 +50,63 @@ def quaternion_to_rotation_matrix(q: torch.Tensor) -> torch.Tensor:
     return rotmat
 
 
-def rotation_6d_to_rotation_matrix(x):
+def quaternion_to_angle_axis(q: torch.Tensor) -> torch.Tensor:
+    """Convert quaternion vector (x, y, z, w) to angle axis of rotation in radians.
+
+    >>> quaternion = torch.tensor((0., 0., 0., 1.))
+    >>> quaternion_to_angle_axis(quaternion)
+    tensor([3.1416, 0.0000, 0.0000])
+
+    Args:
+        q: tensor with quaternions (B, 4).
+    Return:
+        tensor with angle axis of rotation.
+    """
+    norm_q = q.norm(dim=1, keepdim=True)
+    q_normed = q / norm_q
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
+        angle_axis = kornia.geometry.quaternion_to_angle_axis(q_normed, order=q_order)
+    return angle_axis
+
+
+def angle_axis_to_quaternion(angle_axis: torch.Tensor) -> torch.Tensor:
+    """Convert an angle axis to a quaternion (x, y, z, w).
+
+    >>> x = torch.tensor((0., 1., 0.))
+    >>> angle_axis_to_quaternion(x)
+    tensor([0.0000, 0.4794, 0.0000, 0.8776])
+
+    Args:
+        angle_axis: tensor with angle axis in radians (B, 3)
+    Return:
+        tensor with quaternion (B, 4)
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
+        quaternion = kornia.geometry.angle_axis_to_quaternion(angle_axis, order=q_order)
+    return quaternion    
+
+
+def rotation_matrix_to_quaternion(rotation_matrix: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+    r"""Convert 3x3 rotation matrix to 4d quaternion vector (x, y, z, w).
+
+    Args:
+        rotation_matrix: the rotation matrix to convert with shape :math:`(B, 3, 3)`.
+        eps: small value to avoid zero division.
+    Return:
+        the rotation in quaternion with shape :math:`(B, 4)`.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
+        quaternion = kornia.geometry.rotation_matrix_to_quaternion(rotation_matrix, order=q_order, eps=eps)
+    return quaternion
+
+
+def rotation_6d_to_rotation_matrix(x: torch.Tensor) -> torch.Tensor:
     """Convert 6D rotation representation to 3x3 rotation matrix. Based on Zhou et al., "On the Continuity of
     Rotation Representations in Neural Networks", CVPR 2019
 
