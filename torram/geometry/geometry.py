@@ -37,12 +37,16 @@ def quaternion_to_rotation_matrix(q: torch.Tensor) -> torch.Tensor:
             [ 0.,  0.,  1.]])
 
     Args:
-        q: a tensor containing a quaternion to be converted (B, 4).
+        q: a tensor containing a quaternion to be converted (..., 4).
     Return:
-        the rotation matrix of shape :math:`(B, 3, 3)`.
+        the rotation matrix of shape :math:`(..., 3, 3)`.
     """
     shape = q.shape[:-1]
-    q_flat = torch.flatten(q, end_dim=-2)
+    if len(shape) == 0:
+        q_flat = q[None]
+    else:
+        q_flat = torch.flatten(q, end_dim=-2)
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
@@ -58,12 +62,16 @@ def quaternion_to_angle_axis(q: torch.Tensor) -> torch.Tensor:
     tensor([3.1416, 0.0000, 0.0000])
 
     Args:
-        q: tensor with quaternions (B, 4).
+        q: tensor with quaternions (..., 4).
     Return:
-        tensor with angle axis of rotation.
+        angle axis rotation vector (..., 3).
     """
     shape = q.shape[:-1]
-    q_flat = torch.flatten(q, end_dim=-2)
+    if len(shape) == 0:
+        q_flat = q[None]
+    else:
+        q_flat = torch.flatten(q, end_dim=-2)
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
@@ -79,12 +87,16 @@ def angle_axis_to_quaternion(angle_axis: torch.Tensor) -> torch.Tensor:
     tensor([0.0000, 0.4794, 0.0000, 0.8776])
 
     Args:
-        angle_axis: tensor with angle axis in radians (B, 3)
+        angle_axis: tensor with angle axis in radians (..., 3)
     Return:
-        tensor with quaternion (B, 4)
+        tensor with quaternion (..., 4)
     """
     shape = angle_axis.shape[:-1]
-    aa_flat = torch.flatten(angle_axis, end_dim=-2)
+    if len(shape) == 0:
+        aa_flat = angle_axis[None]
+    else:
+        aa_flat = torch.flatten(angle_axis, end_dim=-2)
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
@@ -96,13 +108,17 @@ def rotation_matrix_to_quaternion(rotation_matrix: torch.Tensor, eps: float = 1e
     r"""Convert 3x3 rotation matrix to 4d quaternion vector (x, y, z, w).
 
     Args:
-        rotation_matrix: the rotation matrix to convert with shape :math:`(B, 3, 3)`.
+        rotation_matrix: the rotation matrix to convert with shape :math:`(..., 3, 3)`.
         eps: small value to avoid zero division.
     Return:
-        the rotation in quaternion with shape :math:`(B, 4)`.
+        the rotation in quaternion with shape :math:`(..., 4)`.
     """
     shape = rotation_matrix.shape[:-2]
-    rotmat_flat = torch.flatten(rotation_matrix, end_dim=-3)
+    if len(shape) == 0:  # input tensor two-dimensional
+        rotmat_flat = rotation_matrix[None]
+    else:
+        rotmat_flat = torch.flatten(rotation_matrix, end_dim=-3)
+
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
@@ -171,7 +187,10 @@ def rotation_6d_to_axis_angle(x: torch.Tensor) -> torch.Tensor:
 
 def angle_axis_to_rotation_matrix(x: torch.Tensor) -> torch.Tensor:
     shape = x.shape[:-1]
-    x_flat = torch.flatten(x, end_dim=-2)
+    if len(shape) == 0:
+        x_flat = x[None]
+    else:
+        x_flat = torch.flatten(x, end_dim=-2)
     R_flat = kornia.geometry.angle_axis_to_rotation_matrix(x_flat)
     return R_flat.view(*shape, 3, 3)
 
@@ -187,7 +206,10 @@ def rotation_matrix_to_rotation_6d(x: torch.Tensor) -> torch.Tensor:
 def angle_axis_to_rotation_6d(x: torch.Tensor) -> torch.Tensor:
     """Convert rotation in axis-angle representation to 6d representation."""
     shape = x.shape[:-1]
-    x_flat = torch.flatten(x, end_dim=-2)
+    if len(shape) == 0:
+        x_flat = x[None]
+    else:
+        x_flat = torch.flatten(x, end_dim=-2)
     y = kornia.geometry.angle_axis_to_rotation_matrix(x_flat)
     y6d = rotation_matrix_to_rotation_6d(y)
     return y6d.view(*shape, 6)

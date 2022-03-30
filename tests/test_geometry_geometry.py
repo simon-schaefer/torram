@@ -62,3 +62,17 @@ def test_rotation_6d_cross_transforms(shape):
     R = torram.geometry.angle_axis_to_rotation_matrix(x3d)
     x6d_hat = torram.geometry.rotation_matrix_to_rotation_6d(R)
     assert torch.allclose(x6d_hat, x6d)
+
+
+def test_rotation_matrix_to_quaternion_1d():
+    x3d = torch.rand(3)
+    R_hat = torram.geometry.angle_axis_to_rotation_matrix(x3d)
+    assert R_hat.shape == (3, 3)
+
+
+def test_rotation_matrix_to_quaternion_2d():
+    x3d = torch.rand(3)
+    R = torram.geometry.angle_axis_to_rotation_matrix(x3d)
+    q_hat = torram.geometry.rotation_matrix_to_quaternion(R)
+    assert q_hat.shape == (4, )
+
