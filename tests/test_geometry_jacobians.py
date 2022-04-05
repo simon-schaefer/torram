@@ -32,7 +32,8 @@ def test_T_wrt_t(shape, delta: float = 1e-6):
 @pytest.mark.parametrize("shape", ((4, ), (8, 4), (1, 4), (5, 8, 4)))
 def test_T_wrt_q4d(shape, delta: float = 1e-6):
     def T_from_q(q: torch.Tensor) -> torch.Tensor:
-        return torram.geometry.pose_to_transformation_matrix(torch.zeros((*q.shape[:-1], 3), dtype=q.dtype), q)
+        t = torch.zeros((*q.shape[:-1], 3), dtype=q.dtype, device=q.device)
+        return torram.geometry.pose_to_transformation_matrix(t, q)
 
     x = torch.rand(shape, dtype=torch.float64)
     J_hat = torram_jacobians.T_wrt_q4d(x)
@@ -68,7 +69,6 @@ def test_q4d_wrt_T(shape, delta: float = 1e-6):
             x_[..., i, j] += delta
             q_ = kornia.geometry.rotation_matrix_to_quaternion(x_[..., :3, :3].contiguous())
             J = (q_ - q) / delta
-            print(i, j)
             assert torch.allclose(J_hat[..., i, j], J, atol=1e-4)
 
 

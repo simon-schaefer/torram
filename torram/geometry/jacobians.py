@@ -24,219 +24,110 @@ def T_wrt_q4d(q4d: torch.Tensor) -> torch.Tensor:
     qz = qz[..., 0]
     qw = qw[..., 0]
 
-    norm = (qw**2 + qx**2 + qy**2 + qz**2)**2
+    norm = (qw**2 + qx**2 + qy**2 + qz**2)
+    wz_minus_xy = (qw*qz - qx*qy)
+    wy_plus_xz = (qw*qy + qx*qz)
+    wz_plus_xy = (qw*qz + qx*qy)
+    wx_minus_yz = (qw*qx - qy*qz)
+    wy_minus_xz = (qw*qy - qx*qz)
+    wx_plus_yz = (qw*qx + qy*qz)
 
-    J[..., 0, 0, 0] = (4.0*qx*(qy**2 + qz**2)) / norm
-    J[..., 0, 1, 0] = (4.0*qx*(qw*qz - qx*qy) + 2.0*qy*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 0, 2, 0] = (-4.0*qx*(qw*qy + qx*qz) + 2.0*qz*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 1, 0, 0] = (-4.0*qx*(qw*qz + qx*qy) + 2.0*qy*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 1, 1, 0] = (4.0*qx*(-qw**2 - qy**2)) / norm
-    J[..., 1, 2, 0] = (-2.0*qw*(qw**2 + qx**2 + qy**2 + qz**2) + 4.0*qx*(qw*qx - qy*qz)) / norm
-    J[..., 2, 0, 0] = (4.0*qx*(qw*qy - qx*qz) + 2.0*qz*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 2, 1, 0] = (2.0*qw*(qw**2 + qx**2 + qy**2 + qz**2) - 4.0*qx*(qw*qx + qy*qz)) / norm
-    J[..., 2, 2, 0] = (4.0*qx*(-qw**2 - qz**2)) / norm
+    J[..., 0, 0, 0] = (4.0*qx*(qy**2 + qz**2))
+    J[..., 0, 1, 0] = (4.0*qx*wz_minus_xy + 2.0*qy*norm)
+    J[..., 0, 2, 0] = (-4.0*qx*wy_plus_xz + 2.0*qz*norm)
+    J[..., 1, 0, 0] = (-4.0*qx*wz_plus_xy + 2.0*qy*norm)
+    J[..., 1, 1, 0] = (4.0*qx*(-qw**2 - qy**2))
+    J[..., 1, 2, 0] = (-2.0*qw*norm + 4.0*qx*wx_minus_yz)
+    J[..., 2, 0, 0] = (4.0*qx*wy_minus_xz + 2.0*qz*norm)
+    J[..., 2, 1, 0] = (2.0*qw*norm - 4.0*qx*wx_plus_yz)
+    J[..., 2, 2, 0] = (4.0*qx*(-qw**2 - qz**2))
 
-    J[..., 0, 0, 1] = (4.0*qy*(-qw**2 - qx**2)) / norm
-    J[..., 0, 1, 1] = (2.0*qx*(qw**2 + qx**2 + qy**2 + qz**2) + 4.0*qy*(qw*qz - qx*qy)) / norm
-    J[..., 0, 2, 1] = (2.0*qw*(qw**2 + qx**2 + qy**2 + qz**2) - 4.0*qy*(qw*qy + qx*qz)) / norm
-    J[..., 1, 0, 1] = (2.0*qx*(qw**2 + qx**2 + qy**2 + qz**2) - 4.0*qy*(qw*qz + qx*qy)) / norm
-    J[..., 1, 1, 1] = (4.0*qy*(qx**2 + qz**2)) / norm
-    J[..., 1, 2, 1] = (4.0*qy*(qw*qx - qy*qz) + 2.0*qz*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 2, 0, 1] = (-2.0*qw*(qw**2 + qx**2 + qy**2 + qz**2) + 4.0*qy*(qw*qy - qx*qz)) / norm
-    J[..., 2, 1, 1] = (-4.0*qy*(qw*qx + qy*qz) + 2.0*qz*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 2, 2, 1] = (4.0*qy*(-qw**2 - qz**2)) / norm
+    J[..., 0, 0, 1] = (4.0*qy*(-qw**2 - qx**2))
+    J[..., 0, 1, 1] = (2.0*qx*norm + 4.0*qy*wz_minus_xy)
+    J[..., 0, 2, 1] = (2.0*qw*norm - 4.0*qy*wy_plus_xz)
+    J[..., 1, 0, 1] = (2.0*qx*norm - 4.0*qy*wz_plus_xy)
+    J[..., 1, 1, 1] = (4.0*qy*(qx**2 + qz**2))
+    J[..., 1, 2, 1] = (4.0*qy*wx_minus_yz + 2.0*qz*norm)
+    J[..., 2, 0, 1] = (-2.0*qw*norm + 4.0*qy*wy_minus_xz)
+    J[..., 2, 1, 1] = (-4.0*qy*wx_plus_yz + 2.0*qz*norm)
+    J[..., 2, 2, 1] = (4.0*qy*(-qw**2 - qz**2))
 
-    J[..., 0, 0, 2] = (4.0*qz*(-qw**2 - qx**2)) / norm
-    J[..., 0, 1, 2] = (-2.0*qw*(qw**2 + qx**2 + qy**2 + qz**2) + 4.0*qz*(qw*qz - qx*qy)) / norm
-    J[..., 0, 2, 2] = (2.0*qx*(qw**2 + qx**2 + qy**2 + qz**2) - 4.0*qz*(qw*qy + qx*qz)) / norm
-    J[..., 1, 0, 2] = (2.0*qw*(qw**2 + qx**2 + qy**2 + qz**2) - 4.0*qz*(qw*qz + qx*qy)) / norm
-    J[..., 1, 1, 2] = (4.0*qz*(-qw**2 - qy**2)) / norm
-    J[..., 1, 2, 2] = (2.0*qy*(qw**2 + qx**2 + qy**2 + qz**2) + 4.0*qz*(qw*qx - qy*qz)) / norm
-    J[..., 2, 0, 2] = (2.0*qx*(qw**2 + qx**2 + qy**2 + qz**2) + 4.0*qz*(qw*qy - qx*qz)) / norm
-    J[..., 2, 1, 2] = (2.0*qy*(qw**2 + qx**2 + qy**2 + qz**2) - 4.0*qz*(qw*qx + qy*qz)) / norm
-    J[..., 2, 2, 2] = (4.0*qz*(qx**2 + qy**2)) / norm
+    J[..., 0, 0, 2] = (4.0*qz*(-qw**2 - qx**2))
+    J[..., 0, 1, 2] = (-2.0*qw*norm + 4.0*qz*wz_minus_xy)
+    J[..., 0, 2, 2] = (2.0*qx*norm - 4.0*qz*wy_plus_xz)
+    J[..., 1, 0, 2] = (2.0*qw*norm - 4.0*qz*wz_plus_xy)
+    J[..., 1, 1, 2] = (4.0*qz*(-qw**2 - qy**2))
+    J[..., 1, 2, 2] = (2.0*qy*norm + 4.0*qz*wx_minus_yz)
+    J[..., 2, 0, 2] = (2.0*qx*norm + 4.0*qz*wy_minus_xz)
+    J[..., 2, 1, 2] = (2.0*qy*norm - 4.0*qz*wx_plus_yz)
+    J[..., 2, 2, 2] = (4.0*qz*(qx**2 + qy**2))
 
-    J[..., 0, 0, 3] = (4.0*qw*(qy**2 + qz**2)) / norm
-    J[..., 0, 1, 3] = (4.0*qw*(qw*qz - qx*qy) - 2.0*qz*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 0, 2, 3] = (-4.0*qw*(qw*qy + qx*qz) + 2.0*qy*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 1, 0, 3] = (-4.0*qw*(qw*qz + qx*qy) + 2.0*qz*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 1, 1, 3] = (4.0*qw*(qx**2 + qz**2)) / norm
-    J[..., 1, 2, 3] = (4.0*qw*(qw*qx - qy*qz) - 2.0*qx*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 2, 0, 3] = (4.0*qw*(qw*qy - qx*qz) - 2.0*qy*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 2, 1, 3] = (-4.0*qw*(qw*qx + qy*qz) + 2.0*qx*(qw**2 + qx**2 + qy**2 + qz**2)) / norm
-    J[..., 2, 2, 3] = (4.0*qw*(qx**2 + qy**2)) / norm
+    J[..., 0, 0, 3] = (4.0*qw*(qy**2 + qz**2))
+    J[..., 0, 1, 3] = (4.0*qw*wz_minus_xy - 2.0*qz*norm)
+    J[..., 0, 2, 3] = (-4.0*qw*wy_plus_xz + 2.0*qy*norm)
+    J[..., 1, 0, 3] = (-4.0*qw*wz_plus_xy + 2.0*qz*norm)
+    J[..., 1, 1, 3] = (4.0*qw*(qx**2 + qz**2))
+    J[..., 1, 2, 3] = (4.0*qw*wx_minus_yz - 2.0*qx*norm)
+    J[..., 2, 0, 3] = (4.0*qw*wy_minus_xz - 2.0*qy*norm)
+    J[..., 2, 1, 3] = (-4.0*qw*wx_plus_yz + 2.0*qx*norm)
+    J[..., 2, 2, 3] = (4.0*qw*(qx**2 + qy**2))
 
+    J = J / (norm**2)[..., None, None, None]
     J = torch.flatten(J, start_dim=-3, end_dim=-2)
     return J
 
 
 def q4d_wrt_T(T: torch.Tensor) -> torch.Tensor:
     shape = T.shape[:-2]
-    chunks = torch.chunk(T[..., :3, :3].flatten(start_dim=-2), chunks=9, dim=-1)
-    m00, m01, m02, m10, m11, m12, m20, m21, m22 = (x[..., 0] for x in chunks)
+    T = T.view(-1, 4, 4)
+    batch_size = T.shape[0]
 
-    J_trace_positive_cond = torch.zeros((*shape, 4, 4, 4), dtype=T.dtype, device=T.device)
-    J_trace_positive_cond[..., 0, 0, 0] = 0.25*(m12 - m21)/(m00 + m11 + m22 + 1.0)**(3/2)
-    J_trace_positive_cond[..., 0, 0, 1] = 0.25*(-m02 + m20)/(m00 + m11 + m22 + 1.0)**(3/2)
-    J_trace_positive_cond[..., 0, 0, 2] = 0.25*(m01 - m10)/(m00 + m11 + m22 + 1.0)**(3/2)
-    J_trace_positive_cond[..., 0, 0, 3] = 0.25/torch.sqrt(m00 + m11 + m22 + 1.0)
-    J_trace_positive_cond[..., 0, 1, 0] = 0
-    J_trace_positive_cond[..., 0, 1, 1] = 0
-    J_trace_positive_cond[..., 0, 1, 2] = -0.5/torch.sqrt(m00 + m11 + m22 + 1.0)
-    J_trace_positive_cond[..., 0, 1, 3] = 0
-    J_trace_positive_cond[..., 0, 2, 0] = 0
-    J_trace_positive_cond[..., 0, 2, 1] = 0.5/torch.sqrt(m00 + m11 + m22 + 1.0)
-    J_trace_positive_cond[..., 0, 2, 2] = 0
-    J_trace_positive_cond[..., 0, 2, 3] = 0
-    J_trace_positive_cond[..., 1, 0, 0] = 0
-    J_trace_positive_cond[..., 1, 0, 1] = 0
-    J_trace_positive_cond[..., 1, 0, 2] = 0.5/torch.sqrt(m00 + m11 + m22 + 1.0)
-    J_trace_positive_cond[..., 1, 0, 3] = 0
-    J_trace_positive_cond[..., 1, 1, 0] = 0.25*(m12 - m21)/(m00 + m11 + m22 + 1.0)**(3/2)
-    J_trace_positive_cond[..., 1, 1, 1] = 0.25*(-m02 + m20)/(m00 + m11 + m22 + 1.0)**(3/2)
-    J_trace_positive_cond[..., 1, 1, 2] = 0.25*(m01 - m10)/(m00 + m11 + m22 + 1.0)**(3/2)
-    J_trace_positive_cond[..., 1, 1, 3] = 0.25/torch.sqrt(m00 + m11 + m22 + 1.0)
-    J_trace_positive_cond[..., 1, 2, 0] = -0.5/torch.sqrt(m00 + m11 + m22 + 1.0)
-    J_trace_positive_cond[..., 1, 2, 1] = 0
-    J_trace_positive_cond[..., 1, 2, 2] = 0
-    J_trace_positive_cond[..., 1, 2, 3] = 0
-    J_trace_positive_cond[..., 2, 0, 0] = 0
-    J_trace_positive_cond[..., 2, 0, 1] = -0.5/torch.sqrt(m00 + m11 + m22 + 1.0)
-    J_trace_positive_cond[..., 2, 0, 2] = 0
-    J_trace_positive_cond[..., 2, 0, 3] = 0
-    J_trace_positive_cond[..., 2, 1, 0] = 0.5/torch.sqrt(m00 + m11 + m22 + 1.0)
-    J_trace_positive_cond[..., 2, 1, 1] = 0
-    J_trace_positive_cond[..., 2, 1, 2] = 0
-    J_trace_positive_cond[..., 2, 1, 3] = 0
-    J_trace_positive_cond[..., 2, 2, 0] = 0.25*(m12 - m21)/(m00 + m11 + m22 + 1.0)**(3/2)
-    J_trace_positive_cond[..., 2, 2, 1] = 0.25*(-m02 + m20)/(m00 + m11 + m22 + 1.0)**(3/2)
-    J_trace_positive_cond[..., 2, 2, 2] = 0.25*(m01 - m10)/(m00 + m11 + m22 + 1.0)**(3/2)
-    J_trace_positive_cond[..., 2, 2, 3] = 0.25/torch.sqrt(m00 + m11 + m22 + 1.0)
+    J = torch.zeros((batch_size, 4, 4, 4), dtype=T.dtype, device=T.device)
+    R = T[:, :3, :3]
+    t = R[:, 0, 0] + R[:, 1, 1] + R[:, 2, 2]
+    tgz = t > 0
+    tlz = t <= 0
+    eye = torch.eye(3, dtype=T.dtype, device=T.device)
 
-    J_cond1 = torch.zeros((*shape, 4, 4, 4), dtype=T.dtype, device=T.device)
-    J_cond1[..., 0, 0, 0] = 0.25/torch.sqrt(m00 - m11 - m22 + 1.0)
-    J_cond1[..., 0, 0, 1] = 0.25*(-m01 - m10)/(m00 - m11 - m22 + 1.0)**(3/2)
-    J_cond1[..., 0, 0, 2] = 0.25*(-m02 - m20)/(m00 - m11 - m22 + 1.0)**(3/2)
-    J_cond1[..., 0, 0, 3] = 0.25*(m12 - m21)/(m00 - m11 - m22 + 1.0)**(3/2)
-    J_cond1[..., 0, 1, 0] = 0
-    J_cond1[..., 0, 1, 1] = 0.5/torch.sqrt(m00 - m11 - m22 + 1.0)
-    J_cond1[..., 0, 1, 2] = 0
-    J_cond1[..., 0, 1, 3] = 0
-    J_cond1[..., 0, 2, 0] = 0
-    J_cond1[..., 0, 2, 1] = 0
-    J_cond1[..., 0, 2, 2] = 0.5/torch.sqrt(m00 - m11 - m22 + 1.0)
-    J_cond1[..., 0, 2, 3] = 0
-    J_cond1[..., 1, 0, 0] = 0
-    J_cond1[..., 1, 0, 1] = 0.5/torch.sqrt(m00 - m11 - m22 + 1.0)
-    J_cond1[..., 1, 0, 2] = 0
-    J_cond1[..., 1, 0, 3] = 0
-    J_cond1[..., 1, 1, 0] = -0.25/torch.sqrt(m00 - m11 - m22 + 1.0)
-    J_cond1[..., 1, 1, 1] = 0.25*(m01 + m10)/(m00 - m11 - m22 + 1.0)**(3/2)
-    J_cond1[..., 1, 1, 2] = 0.25*(m02 + m20)/(m00 - m11 - m22 + 1.0)**(3/2)
-    J_cond1[..., 1, 1, 3] = 0.25*(-m12 + m21)/(m00 - m11 - m22 + 1.0)**(3/2)
-    J_cond1[..., 1, 2, 0] = 0
-    J_cond1[..., 1, 2, 1] = 0
-    J_cond1[..., 1, 2, 2] = 0
-    J_cond1[..., 1, 2, 3] = -0.5/torch.sqrt(m00 - m11 - m22 + 1.0)
-    J_cond1[..., 2, 0, 0] = 0
-    J_cond1[..., 2, 0, 1] = 0
-    J_cond1[..., 2, 0, 2] = 0.5/torch.sqrt(m00 - m11 - m22 + 1.0)
-    J_cond1[..., 2, 0, 3] = 0
-    J_cond1[..., 2, 1, 0] = 0
-    J_cond1[..., 2, 1, 1] = 0
-    J_cond1[..., 2, 1, 2] = 0
-    J_cond1[..., 2, 1, 3] = 0.5/torch.sqrt(m00 - m11 - m22 + 1.0)
-    J_cond1[..., 2, 2, 0] = -0.25/torch.sqrt(m00 - m11 - m22 + 1.0)
-    J_cond1[..., 2, 2, 1] = 0.25*(m01 + m10)/(m00 - m11 - m22 + 1.0)**(3/2)
-    J_cond1[..., 2, 2, 2] = 0.25*(m02 + m20)/(m00 - m11 - m22 + 1.0)**(3/2)
-    J_cond1[..., 2, 2, 3] = 0.25*(-m12 + m21)/(m00 - m11 - m22 + 1.0)**(3/2)
+    if torch.any(tgz):
+        isqrt_t = 1 / torch.sqrt(1 + t[tgz])
+        J[tgz, 0, :3, :3] = 0.25 * isqrt_t[..., None, None] * eye
+        J[tgz, 1, :3, :3] = -0.25 * (isqrt_t / (1 + t[tgz]) * (R[tgz, 2, 1] - R[tgz, 1, 2]))[..., None, None] * eye
+        J[tgz, 1, 2, 1] = 0.5 * isqrt_t
+        J[tgz, 1, 1, 2] = -0.5 * isqrt_t
+        J[tgz, 2, :3, :3] = -0.25 * (isqrt_t / (1 + t[tgz]) * (R[tgz, 0, 2] - R[tgz, 2, 0]))[..., None, None] * eye
+        J[tgz, 2, 0, 2] = 0.5 * isqrt_t
+        J[tgz, 2, 2, 0] = -0.5 * isqrt_t
+        J[tgz, 3, :3, :3] = -0.25 * (isqrt_t / (1 + t[tgz]) * (R[tgz, 1, 0] - R[tgz, 0, 1]))[..., None, None] * eye
+        J[tgz, 3, 1, 0] = 0.5 * isqrt_t
+        J[tgz, 3, 0, 1] = -0.5 * isqrt_t
 
-    J_cond2 = torch.zeros((*shape, 4, 4, 4), dtype=T.dtype, device=T.device)
-    J_cond2[..., 0, 0, 0] = 0.25*(m01 + m10)/(-m00 + m11 - m22 + 1.0)**(3/2)
-    J_cond2[..., 0, 0, 1] = -0.25/torch.sqrt(-m00 + m11 - m22 + 1.0)
-    J_cond2[..., 0, 0, 2] = 0.25*(m12 + m21)/(-m00 + m11 - m22 + 1.0)**(3/2)
-    J_cond2[..., 0, 0, 3] = 0.25*(m02 - m20)/(-m00 + m11 - m22 + 1.0)**(3/2)
-    J_cond2[..., 0, 1, 0] = 0.5/torch.sqrt(-m00 + m11 - m22 + 1.0)
-    J_cond2[..., 0, 1, 1] = 0
-    J_cond2[..., 0, 1, 2] = 0
-    J_cond2[..., 0, 1, 3] = 0
-    J_cond2[..., 0, 2, 0] = 0
-    J_cond2[..., 0, 2, 1] = 0
-    J_cond2[..., 0, 2, 2] = 0
-    J_cond2[..., 0, 2, 3] = 0.5/torch.sqrt(-m00 + m11 - m22 + 1.0)
-    J_cond2[..., 1, 0, 0] = 0.5/torch.sqrt(-m00 + m11 - m22 + 1.0)
-    J_cond2[..., 1, 0, 1] = 0
-    J_cond2[..., 1, 0, 2] = 0
-    J_cond2[..., 1, 0, 3] = 0
-    J_cond2[..., 1, 1, 0] = 0.25*(-m01 - m10)/(-m00 + m11 - m22 + 1.0)**(3/2)
-    J_cond2[..., 1, 1, 1] = 0.25/torch.sqrt(-m00 + m11 - m22 + 1.0)
-    J_cond2[..., 1, 1, 2] = 0.25*(-m12 - m21)/(-m00 + m11 - m22 + 1.0)**(3/2)
-    J_cond2[..., 1, 1, 3] = 0.25*(-m02 + m20)/(-m00 + m11 - m22 + 1.0)**(3/2)
-    J_cond2[..., 1, 2, 0] = 0
-    J_cond2[..., 1, 2, 1] = 0
-    J_cond2[..., 1, 2, 2] = 0.5/torch.sqrt(-m00 + m11 - m22 + 1.0)
-    J_cond2[..., 1, 2, 3] = 0
-    J_cond2[..., 2, 0, 0] = 0
-    J_cond2[..., 2, 0, 1] = 0
-    J_cond2[..., 2, 0, 2] = 0
-    J_cond2[..., 2, 0, 3] = -0.5/torch.sqrt(-m00 + m11 - m22 + 1.0)
-    J_cond2[..., 2, 1, 0] = 0
-    J_cond2[..., 2, 1, 1] = 0
-    J_cond2[..., 2, 1, 2] = 0.5/torch.sqrt(-m00 + m11 - m22 + 1.0)
-    J_cond2[..., 2, 1, 3] = 0
-    J_cond2[..., 2, 2, 0] = 0.25*(m01 + m10)/(-m00 + m11 - m22 + 1.0)**(3/2)
-    J_cond2[..., 2, 2, 1] = -0.25/torch.sqrt(-m00 + m11 - m22 + 1.0)
-    J_cond2[..., 2, 2, 2] = 0.25*(m12 + m21)/(-m00 + m11 - m22 + 1.0)**(3/2)
-    J_cond2[..., 2, 2, 3] = 0.25*(m02 - m20)/(-m00 + m11 - m22 + 1.0)**(3/2)
+    if torch.any(tlz):
+        batch_size_tlz = torch.count_nonzero(tlz)
+        batch_index_tlz = list(range(batch_size_tlz))
+        i = torch.argmax(torch.stack([R[tlz, 0, 0], R[tlz, 1, 1], R[tlz, 2, 2]], dim=-1), dim=-1)
+        j = (i + 1) % 3
+        k = (j + 1) % 3
 
-    J_cond3 = torch.zeros((*shape, 4, 4, 4), dtype=T.dtype, device=T.device)
-    J_cond3[..., 0, 0, 0] = 0.25*(m02 + m20)/(-m00 - m11 + m22 + 1.0)**(3/2)
-    J_cond3[..., 0, 0, 1] = 0.25*(m12 + m21)/(-m00 - m11 + m22 + 1.0)**(3/2)
-    J_cond3[..., 0, 0, 2] = -0.25/torch.sqrt(-m00 - m11 + m22 + 1.0)
-    J_cond3[..., 0, 0, 3] = 0.25*(-m01 + m10)/(-m00 - m11 + m22 + 1.0)**(3/2)
-    J_cond3[..., 0, 1, 0] = 0
-    J_cond3[..., 0, 1, 1] = 0
-    J_cond3[..., 0, 1, 2] = 0
-    J_cond3[..., 0, 1, 3] = -0.5/torch.sqrt(-m00 - m11 + m22 + 1.0)
-    J_cond3[..., 0, 2, 0] = 0.5/torch.sqrt(-m00 - m11 + m22 + 1.0)
-    J_cond3[..., 0, 2, 1] = 0
-    J_cond3[..., 0, 2, 2] = 0
-    J_cond3[..., 0, 2, 3] = 0
-    J_cond3[..., 1, 0, 0] = 0
-    J_cond3[..., 1, 0, 1] = 0
-    J_cond3[..., 1, 0, 2] = 0
-    J_cond3[..., 1, 0, 3] = 0.5/torch.sqrt(-m00 - m11 + m22 + 1.0)
-    J_cond3[..., 1, 1, 0] = 0.25*(m02 + m20)/(-m00 - m11 + m22 + 1.0)**(3/2)
-    J_cond3[..., 1, 1, 1] = 0.25*(m12 + m21)/(-m00 - m11 + m22 + 1.0)**(3/2)
-    J_cond3[..., 1, 1, 2] = -0.25/torch.sqrt(-m00 - m11 + m22 + 1.0)
-    J_cond3[..., 1, 1, 3] = 0.25*(-m01 + m10)/(-m00 - m11 + m22 + 1.0)**(3/2)
-    J_cond3[..., 1, 2, 0] = 0
-    J_cond3[..., 1, 2, 1] = 0.5/torch.sqrt(-m00 - m11 + m22 + 1.0)
-    J_cond3[..., 1, 2, 2] = 0
-    J_cond3[..., 1, 2, 3] = 0
-    J_cond3[..., 2, 0, 0] = 0.5/torch.sqrt(-m00 - m11 + m22 + 1.0)
-    J_cond3[..., 2, 0, 1] = 0
-    J_cond3[..., 2, 0, 2] = 0
-    J_cond3[..., 2, 0, 3] = 0
-    J_cond3[..., 2, 1, 0] = 0
-    J_cond3[..., 2, 1, 1] = 0.5/torch.sqrt(-m00 - m11 + m22 + 1.0)
-    J_cond3[..., 2, 1, 2] = 0
-    J_cond3[..., 2, 1, 3] = 0
-    J_cond3[..., 2, 2, 0] = 0.25*(-m02 - m20)/(-m00 - m11 + m22 + 1.0)**(3/2)
-    J_cond3[..., 2, 2, 1] = 0.25*(-m12 - m21)/(-m00 - m11 + m22 + 1.0)**(3/2)
-    J_cond3[..., 2, 2, 2] = 0.25/torch.sqrt(-m00 - m11 + m22 + 1.0)
-    J_cond3[..., 2, 2, 3] = 0.25*(m01 - m10)/(-m00 - m11 + m22 + 1.0)**(3/2)
+        r = torch.sqrt(R[tlz, i, i] - R[tlz, j, j] - R[tlz, k, k] + 1)
+        i_r = 1 / r
+        i_r_cube = 1 / ((R[tlz, i, i] - R[tlz, j, j] - R[tlz, k, k] + 1) * r)
+        r_eye = eye[None].repeat(batch_size_tlz, 1, 1)
+        r_eye[batch_index_tlz, j, j] = -1
+        r_eye[batch_index_tlz, k, k] = -1
+        J[tlz, 1 + i, :3, :3] = 0.25 * i_r[..., None, None] * r_eye
+        J[tlz, 0, :3, :3] = -0.25 * ((R[tlz, k, j] - R[tlz, j, k]) * i_r_cube)[:, None, None] * r_eye
+        J[tlz, 0, k, j] = 0.5 * i_r
+        J[tlz, 0, j, k] = -0.5 * i_r
+        J[tlz, 1 + j, :3, :3] = -0.25 * ((R[tlz, j, i] + R[tlz, i, j]) * i_r_cube)[:, None, None] * r_eye
+        J[tlz, 1 + j, j, i] = 0.5 * i_r
+        J[tlz, 1 + j, i, j] = 0.5 * i_r
+        J[tlz, 1 + k, :3, :3] = -0.25 * ((R[tlz, k, i] + R[tlz, i, k]) * i_r_cube)[:, None, None] * r_eye
+        J[tlz, 1 + k, k, i] = 0.5 * i_r
+        J[tlz, 1 + k, i, k] = 0.5 * i_r
 
-    trace = m00 + m11 + m22
-    cond_2 = (m11 > m22)[..., None, None, None]  # same dimension as jacobians
-    cond_1 = ((m00 > m11) & (m00 > m22))[..., None, None, None]
-    cond_trace = (trace > 0.0)[..., None, None, None]
-
-    where_2 = torch.where(cond_2, J_cond2, J_cond3)
-    where_1 = torch.where(cond_1, J_cond1, where_2)
-    Jq = torch.where(cond_trace, J_trace_positive_cond, where_1)
-    Jq = Jq.transpose(-1, -3).transpose(-1, -2)
-    return torch.flatten(Jq, start_dim=-2)
+    J = J.view(*shape, 4, 4, 4)
+    return torch.flatten(J[..., [1, 2, 3, 0], :, :], start_dim=-2)
 
 
 def t_wrt_T(T: torch.Tensor) -> torch.Tensor:
