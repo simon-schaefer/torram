@@ -1,6 +1,11 @@
 import torch
 
-__all__ = ['diag_last']
+from typing import Tuple, Union
+
+__all__ = [
+    'diag_last',
+    'eye'
+]
 
 
 def diag_last(x: torch.Tensor) -> torch.Tensor:
@@ -19,3 +24,17 @@ def diag_last(x: torch.Tensor) -> torch.Tensor:
     for i in range(d):
         output[..., i, i] = x[..., i]
     return output
+
+
+def eye(shape: Union[torch.Size, Tuple[int, ...]], dtype: torch.dtype = None, device=None, requires_grad: bool = False
+        ) -> torch.Tensor:
+    """Make identity matrix with given shape (*shape, shape[-1]).
+
+    >>> I = eye((8, 2, 3))
+    >>> I.shape
+    (8, 2, 3, 3)
+    """
+    if len(shape) == 0:
+        raise ValueError(f"Got empty shape for eye")
+    out_diagonal = torch.ones(shape, dtype=dtype, device=device, requires_grad=requires_grad)
+    return diag_last(out_diagonal)
