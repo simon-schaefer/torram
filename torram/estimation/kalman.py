@@ -36,14 +36,17 @@ def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: 
     return MultivariateNormal(loc=x_f, covariance_matrix=P_f)
 
 
-def kalman_update_with_distributions(x: Distribution, z: Distribution) -> MultivariateNormal:
+def kalman_update_with_distributions(x: Distribution, z: Distribution, eps: float = 1e-5) -> MultivariateNormal:
     def get_covariance_matrix(d: Distribution):
         if isinstance(d, Normal):
-            return torram.geometry.diag_last(d.variance)
+            out = torram.geometry.diag_last(d.variance)
         elif isinstance(d, MultivariateNormal):
-            return d.covariance_matrix
+            out = d.covariance_matrix
         else:
             raise NotImplementedError(f"Covariance retrieval not implemented for distribution type {type(d)}")
+        eps_diagonal = torch.ones(out.shape[:-1], device=out.device, dtype=out.dtype) * eps
+        eps_diagonal = torram.geometry.diag_last(eps_diagonal)
+        return out + eps_diagonal
 
     P_hat = get_covariance_matrix(x)
     R = get_covariance_matrix(z)
