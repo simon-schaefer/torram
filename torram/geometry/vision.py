@@ -19,8 +19,8 @@ def is_in_image(pixel: torch.Tensor, width: Union[int, torch.Tensor], height: Un
     Returns:
         both pixel coordinates are in the image [...].
     """
-    is_in_image_u = torch.logical_and(pixel[..., 0] > 0, pixel[..., 0] < width)
-    is_in_image_v = torch.logical_and(pixel[..., 1] > 0, pixel[..., 1] < height)
+    is_in_image_u = torch.logical_and(pixel[..., 0] >= 0, pixel[..., 0] < width)
+    is_in_image_v = torch.logical_and(pixel[..., 1] >= 0, pixel[..., 1] < height)
     return torch.logical_and(is_in_image_u, is_in_image_v)
 
 

@@ -10,10 +10,10 @@ class ImageLogger(LogLogger):
     def __init__(self, directory: str):
         super(ImageLogger, self).__init__()
         self.directory = directory
-        os.makedirs(directory, exist_ok=True)
 
     def add_image(self, tag: str, img: torch.Tensor, **kwargs):
         output_path = os.path.join(self.directory, f"{tag}.jpg")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
         torram.io.write_jpeg(img, output_path)
 
     def add_images_w_iter(self, tag: str, images: torch.Tensor, **kwargs):

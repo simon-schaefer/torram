@@ -1,18 +1,50 @@
 import kornia
 import torch
-from torchvision.utils import draw_bounding_boxes, draw_keypoints, draw_segmentation_masks
-from typing import Union, List, Tuple
+import torram
+
+from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
+from typing import Tuple
 
 
 __all__ = ['draw_bounding_boxes',
-           'draw_keypoints',
            'draw_segmentation_masks',
+           'draw_keypoints',
            'draw_reprojection',
            'draw_keypoints_weighted']
 
 
+@torch.no_grad()
+def draw_keypoints(image: torch.Tensor, points: torch.Tensor, color: Tuple[int, int, int] = (255, 0, 0)
+                   ) -> torch.Tensor:
+    """Draw keypoints in pixel coordinates in image by coloring the pixel.
+
+    Args:
+        image: base image to draw keypoints in (3, H, W).
+        points: keypoints in pixel coordinates (N, 2).
+        color: keypoint color as RGB tuple (0-255).
+    """
+    if points.ndim != 2 or points.shape[-1] != 2:
+        raise ValueError(f"Keypoints have invalid shape, expected (N, 2), got {points.shape}")
+    if image.dtype != torch.uint8:
+        raise ValueError(f"Invalid image type, expected uint8, got {image.dtype}")
+    if not all(0 <= x <= 255 for x in color):
+        raise ValueError(f"Invalid values in color tuple, must be [0, 255], got {color}")
+
+    # Remove the points that are not in the image.
+    h, w = image.shape[-2:]
+    is_in_image = torram.geometry.is_in_image(points, height=h, width=w)
+    points_in = points[is_in_image, :]
+
+    # Color the remaining points with the given color.
+    out_image = image.clone()
+    for i in range(3):
+        out_image[i, points_in[:, 1], points_in[:, 0]] = color[i]
+    return out_image
+
+
+@torch.no_grad()
 def draw_reprojection(pc_C: torch.Tensor, image: torch.Tensor, K: torch.Tensor,
-                      color: Union[str, Tuple, List] = "#FFFF00") -> torch.Tensor:
+                      color: Tuple[int, int, int] = (255, 0, 0)) -> torch.Tensor:
     """Re-Project a point cloud in the camera frame to the image plane and draw the points.
 
     Args:
@@ -27,9 +59,10 @@ def draw_reprojection(pc_C: torch.Tensor, image: torch.Tensor, K: torch.Tensor,
         raise ValueError(f"Intrinsics have invalid shape, expected (3, 3), got {K.shape}")
     K_point_cloud = K[None, :, :]
     pc_projections = kornia.geometry.project_points(pc_C, camera_matrix=K_point_cloud).long()  # int image coordinates
-    return draw_keypoints(image.detach().cpu(), pc_projections[None], colors=color)
+    return draw_keypoints(image.detach().cpu(), pc_projections, colors=color)
 
 
+@torch.no_grad()
 def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores: torch.Tensor,
                             min_color: Tuple[int, int, int], max_color: Tuple[int, int, int], radius: int = 1
                             ) -> torch.Tensor:
