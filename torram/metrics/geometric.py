@@ -33,7 +33,7 @@ def geodesic_loss(x_hat: torch.Tensor, x: torch.Tensor, eps: float = 1e-7) -> to
         raise ValueError(f"Invalid rotation matrix shape, expected (B, 3, 3), got {x.shape} and {x_hat.shape}")
     if x.shape != x_hat.shape:
         raise ValueError(f"Non matching prediction and target, got {x.shape} and {x_hat.shape}")
-    R_diffs = torch.matmul(x_hat, x.permute(0, 2, 1))  # x -> inv(x) = x.T
+    R_diffs = x_hat @ x.permute(0, 2, 1)  # x -> inv(x) = x.T
     traces = R_diffs.diagonal(dim1=-2, dim2=-1).sum(-1)
     return torch.acos(torch.clamp((traces - 1) / 2, -1 + eps, 1 - eps))
 

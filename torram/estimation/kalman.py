@@ -13,13 +13,24 @@ def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: 
     """Kalman update equations for merging predictions from the process model (x) and measurement (z).
 
     This implementation assumes that the output of the process model (x) and the measurement (z) are describing
-    the same quantity, i.e. that the matrix H with x_z = H * z is the identity matrix.
+    the same quantity, i.e. that the matrix H with x_z = H * z is the identity matrix. Equations:
+
+    state @ t=k:        (mean: x_hat, variance: P_hat)
+    measurement @ t=k:  (mean: z, variance: R)
+
+    K = P_{k|k-1} * (P_{k|k-1} + R_k)^(-1)
+    x_k = x_{k|k-1} + K * (z_k - x_{k|k-1})
+    P_k = (I - K) * P_{k|k-1} * (I - K)^T + K * R_k * K^T
+
+    The Joseph's form of the measurement update is used to avoid loss of symmetry and positive definiteness due to
+    numerical errors (following the description of
+    https://www.cs.cmu.edu/~motionplanning/papers/sbpx_%7Bk%7Ck-1%7D_papers/kalman/kleeman_understanding_kalman.pdf).
 
     Args:
-        x_hat: prediction from process model at time k.
-        z: measurement at time k.
-        P_hat: process model covariance (A*P*A_T + Q in linear case).
-        R: measurement covariance
+        x_hat: prediction from process model at time k (x_k|k-1).
+        z: measurement at time k (z_k).
+        P_hat: process model covariance (P_k|k-1, A*P*A_T + Q in linear case).
+        R: measurement covariance (R_k).
     """
     n = x_hat.shape[-1]
     if x_hat.shape != z.shape:
@@ -29,10 +40,10 @@ def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: 
     if R.shape != (*z.shape[:-1], n, n):
         raise ValueError(f"Measurement noise not matching z, expected {(*x_hat.shape[:-1], n, n)}, got {R.shape}")
 
-    K = torch.matmul(P_hat, torch.inverse(P_hat + R))
+    K = P_hat @ torch.inverse(P_hat + R)
     x_f = x_hat + torch.einsum('...ij, ...j->...i', K, z - x_hat)
     I = torch.eye(n, device=K.device, dtype=K.dtype)
-    P_f = torch.matmul(I - K, P_hat)
+    P_f = (I - K) @ P_hat @ (I - K).transpose(-1, -2) + K @ R @ K.transpose(-1, -2)
     return MultivariateNormal(loc=x_f, covariance_matrix=P_f)
 
 

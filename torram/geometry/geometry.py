@@ -223,7 +223,7 @@ def inverse_transformation(x: torch.Tensor) -> torch.Tensor:
     x_inv = torch.zeros_like(x, dtype=x.dtype, device=x.device)
     Rx_inv = torch.transpose(x[..., :3, :3], -1, -2)   # same as inverse (rotation matrix)
     x_inv[..., :3, :3] = Rx_inv
-    x_inv[..., :3, 3] = - torch.matmul(Rx_inv, x[..., :3, 3, None])[..., 0]  # - R^1 * t
+    x_inv[..., :3, 3] = - (Rx_inv @ x[..., :3, 3, None])[..., 0]  # - R^1 * t
     x_inv[..., 3, 3] = 1
     return x_inv
 
