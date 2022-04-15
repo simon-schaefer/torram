@@ -15,7 +15,7 @@ def test_equal_uncertainty(shape: Tuple[int, ...]):
     x = torram.estimation.kalman_update(x_hat, z, P_hat=P_hat, R=R)
     assert torch.allclose(x.mean, (x_hat + z) / 2)
     expected = torram.geometry.eye(shape) * 0.5
-    assert torch.allclose(x.covariance_matrix, expected)
+    assert torch.allclose(x.covariance_matrix, expected, atol=1e-3)
 
 
 @pytest.mark.parametrize("shape", ((1, ), (8, 2), (8, 1, 3)))
