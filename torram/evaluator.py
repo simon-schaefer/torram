@@ -1,5 +1,6 @@
 import torch
 import torch.utils.data
+import tqdm
 
 from typing import Any, Dict, Protocol
 
@@ -7,6 +8,9 @@ from typing import Any, Dict, Protocol
 class ModelProtocol(Protocol):  # pragma: no cover
 
     def wbatch(self, batch) -> Any:
+        ...
+
+    def eval(self):
         ...
 
     def evaluate(self, batch, model_output, reduce_mean: bool) -> Dict[str, torch.Tensor]:
@@ -25,8 +29,9 @@ def evaluate_dataset(model: ModelProtocol, dataset: torch.utils.data.Dataset, de
         stop_after: stops after n samples, -1 = do not stop.
     """
     data_loader = torch.utils.data.DataLoader(dataset, shuffle=False, batch_size=batch_size)
+    model.eval()
     results = []
-    for k, batch in enumerate(data_loader):
+    for k, batch in tqdm.tqdm(enumerate(data_loader), total=len(data_loader)):
         if stop_after != -1 and k > stop_after:
             break
         batch = tuple(x.to(device) for x in batch)
