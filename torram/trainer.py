@@ -71,11 +71,13 @@ class Trainer:  # pragma: no cover
                                                              batch_size=batch_size_train,
                                                              shuffle=True,
                                                              num_workers=num_workers,
-                                                             pin_memory=pin_memory)
+                                                             pin_memory=pin_memory,
+                                                             collate_fn=getattr(ds_train, "collate_fn", None))
         self.test_data_loader = torch.utils.data.DataLoader(ds_test,
                                                             batch_size=batch_size_test,
                                                             shuffle=True,
-                                                            pin_memory=pin_memory)
+                                                            pin_memory=pin_memory,
+                                                            collate_fn=getattr(ds_test, "collate_fn", None))
 
         self.evaluator = torram.utility.EvaluatorFactory(model.evaluate, device=device)
         self.optimizer = torch.optim.Adam(self.model.parameters(), lr=learning_rate)
