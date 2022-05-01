@@ -3,6 +3,7 @@ import torch
 import torram
 import torchvision
 
+import matplotlib.cm as cm
 from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
 from typing import Tuple
 
@@ -64,18 +65,17 @@ def draw_reprojection(pc_C: torch.Tensor, image: torch.Tensor, K: torch.Tensor,
 
 
 @torch.no_grad()
-def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores: torch.Tensor,
-                            min_color: Tuple[int, int, int], max_color: Tuple[int, int, int], radius: int = 1
+def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores: torch.Tensor, radius: int = 1
                             ) -> torch.Tensor:
-    """Draw keypoints in image with different weight. The larger the score the more the color of the keypoints
-    will shift to the max color.
+    """Draw keypoints in image colored by their scoring (0 <= score <= 1).
+
+    This function uses the matplotlib colormap 'coolwarm', ranging from blue for low values to red for high values.
+    The scores are not clamped, instead a value error is thrown if they are not in [0, 1].
 
     Args:
         image: base image (3, H, W).
         keypoints: points to draw in image (N, 2).
         scores: weights for color evaluation, (0 <= scores <= 1).
-        min_color: color at score = 0 (R, G, B).
-        max_color: color at score = 1 (R, G, B).
         radius: keypoint radius.
     """
     if torch.any(scores < 0) or torch.any(scores > 1):
@@ -86,8 +86,7 @@ def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores
         raise ValueError(f"Not matching keypoint and scores, got {keypoints.shape} and {scores.shape}")
 
     for keypoint_k, score_k in zip(keypoints, scores):
-        color_k = (int(min_color[0] * (1 - score_k) + max_color[0] * score_k),
-                   int(min_color[1] * (1 - score_k) + max_color[1] * score_k),
-                   int(min_color[2] * (1 - score_k) + max_color[2] * score_k))
+        color_k = cm.coolwarm(float(score_k))[:3]  # RGBA -> RGB
+        color_k = tuple(int(255 * c) for c in color_k)
         image = torchvision.utils.draw_keypoints(image, keypoint_k[None, None], colors=color_k, radius=radius)
     return image

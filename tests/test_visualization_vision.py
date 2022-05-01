@@ -1,3 +1,4 @@
+import os
 import pytest
 import torch
 import torram
@@ -32,3 +33,19 @@ def test_draw_keypoints_outside_points():
     points = torch.tensor([[11, 0], [-1, 1], [-1, -1]], dtype=torch.long)
     out_hat = torram.visualization.draw_keypoints(image, points)
     assert torch.allclose(out_hat, image)
+
+
+def test_draw_keypoints_weighted():
+    image_shape = (3, 100, 100)
+    cache_directory = os.environ.get("CACHE_DIRECTORY", "/srv/cache")
+    output_directory = os.path.join(cache_directory, "keypoints_weighted")
+    os.makedirs(output_directory, exist_ok=True)
+
+    image = torch.zeros(image_shape, dtype=torch.uint8)
+    points = torch.stack([torch.randint(0, image_shape[1], size=(4, ), dtype=torch.long),
+                          torch.randint(0, image_shape[2], size=(4, ), dtype=torch.long)], dim=1)
+    scores = torch.rand((4, ), dtype=torch.float32)
+
+    out = torram.visualization.draw_keypoints_weighted(image, points, scores=scores)
+    assert out.shape == (3, 100, 100)
+    torram.io.write_png(out, os.path.join(output_directory, f"test.png"))

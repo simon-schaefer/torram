@@ -10,6 +10,7 @@ setup(
                       'torchvision >= 0.12.0',
                       'kornia == 0.6.2',
                       'randomname',
+                      'matplotlib',
                       'pyyaml',
                       'pytest',
                       'tqdm'),
