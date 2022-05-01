@@ -112,7 +112,7 @@ class Trainer:  # pragma: no cover
             for batch in self.train_data_loader:
                 logging.debug(f"Starting batch with global step {global_step} (epoch = {epoch})")
                 timer.log_dt("data-loading")
-                batch = tuple(x.to(self.device) for x in batch)
+                batch = self.move_data(batch)
                 timer.log_dt("moving-data")
 
                 logging.debug("Model forward pass of loaded batch")
@@ -168,6 +168,16 @@ class Trainer:  # pragma: no cover
                 timer.log_dt("finishing-batch")
             epoch += 1
         self.logger.close()
+
+    def move_data(self, batch):
+        if hasattr(batch, "to"):
+            return batch.to(self.device)
+        elif isinstance(batch, tuple):
+            return tuple(x.to(self.device) if isinstance(x, torch.Tensor) else x for x in batch)
+        elif isinstance(batch, dict):
+            return {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
+        logging.warning(f"Moving batch data not implemented for batch type {type(batch)}")
+        return batch
 
     def forward_batch(self, batch):
         return self.model.wbatch(batch)
