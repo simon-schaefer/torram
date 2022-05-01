@@ -112,7 +112,7 @@ class Trainer:  # pragma: no cover
             for batch in self.train_data_loader:
                 logging.debug(f"Starting batch with global step {global_step} (epoch = {epoch})")
                 timer.log_dt("data-loading")
-                batch = self.move_data(batch)
+                batch = torram.utility.moving.move_batch(batch, device=self.device)
                 timer.log_dt("moving-data")
 
                 logging.debug("Model forward pass of loaded batch")
@@ -169,16 +169,6 @@ class Trainer:  # pragma: no cover
             epoch += 1
         self.logger.close()
 
-    def move_data(self, batch):
-        if hasattr(batch, "to"):
-            return batch.to(self.device)
-        elif isinstance(batch, tuple):
-            return tuple(x.to(self.device) if isinstance(x, torch.Tensor) else x for x in batch)
-        elif isinstance(batch, dict):
-            return {k: v.to(self.device) if isinstance(v, torch.Tensor) else v for k, v in batch.items()}
-        logging.warning(f"Moving batch data not implemented for batch type {type(batch)}")
-        return batch
-
     def forward_batch(self, batch):
         return self.model.wbatch(batch)
 
@@ -196,7 +186,7 @@ class Trainer:  # pragma: no cover
         self.logger.add_scalar_dict("metrics/test", metrics_dict, global_step=global_step)
 
         vis_batch = next(self.test_data_loader.__iter__())  # should yield first batch
-        vis_batch = tuple(x.to(self.device) for x in vis_batch)
+        vis_batch = torram.utility.moving.move_batch(vis_batch, device=self.device)
         with torch.no_grad():
             model_output = self.forward_batch(vis_batch)
 

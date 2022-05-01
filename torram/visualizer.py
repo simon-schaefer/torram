@@ -13,6 +13,7 @@ class ModelProtocol(Protocol):  # pragma: no cover
         ...
 
 
+@torch.no_grad()
 def visualize_dataset(model: ModelProtocol, dataset: torch.utils.data.Dataset, output_path: str,
                       device: torch.device('cpu'), stop_after: int = -1):
     """Visualize model outputs for dataset.
@@ -29,6 +30,6 @@ def visualize_dataset(model: ModelProtocol, dataset: torch.utils.data.Dataset, o
     for k, batch in enumerate(data_loader):
         if stop_after != -1 and k > stop_after:
             break
-        batch = tuple(x.to(device) for x in batch)
+        batch = torram.utility.moving.move_batch(batch, device=device)
         model_output = model.wbatch(batch)
         model.visualize(batch, model_output, logger=logger, global_step=k)

@@ -1,4 +1,5 @@
 import torram.utility.logger
+import torram.utility.moving
 
 from torram.utility.config import Config
 from torram.utility.evaluator_factory import EvaluatorFactory

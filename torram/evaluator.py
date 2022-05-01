@@ -4,6 +4,8 @@ import tqdm
 
 from typing import Any, Dict, Protocol
 
+import torram.utility.moving
+
 
 class ModelProtocol(Protocol):  # pragma: no cover
 
@@ -17,6 +19,7 @@ class ModelProtocol(Protocol):  # pragma: no cover
         ...
 
 
+@torch.no_grad()
 def evaluate_dataset(model: ModelProtocol, dataset: torch.utils.data.Dataset, device: torch.device = torch.device('cpu'),
                      batch_size: int = 1, stop_after: int = -1):
     """Visualize model outputs for dataset.
@@ -34,7 +37,7 @@ def evaluate_dataset(model: ModelProtocol, dataset: torch.utils.data.Dataset, de
     for k, batch in tqdm.tqdm(enumerate(data_loader), total=len(data_loader)):
         if stop_after != -1 and k > stop_after:
             break
-        batch = tuple(x.to(device) for x in batch)
+        batch = torram.utility.moving.move_batch(batch, device=device)
         model_output = model.wbatch(batch)
         results_k = model.evaluate(batch, model_output, reduce_mean=False)
         results.append(results_k)
