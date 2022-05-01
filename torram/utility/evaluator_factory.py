@@ -2,6 +2,7 @@ import collections
 import torch
 import torch.utils.data
 
+from torram.utility.moving import move_batch
 from typing import Any, Dict, Optional, Protocol
 
 
@@ -33,7 +34,7 @@ class EvaluatorFactory:
         for j, batch in enumerate(data_loader):
             if until is not None and j > until:
                 break
-            batch = tuple((x.to(self.device) for x in batch))
+            batch = move_batch(batch, device=self.device)
             metrics_dict = self.wmodel(model, batch, reduce_mean=False)
             metric_cache = {key: torch.cat([metric_cache[key], value]) for key, value in metrics_dict.items()}
         return {key: torch.mean(value) for key, value in metric_cache.items()}
