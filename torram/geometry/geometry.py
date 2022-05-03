@@ -20,6 +20,8 @@ __all__ = ['angle_axis_to_quaternion',
            'rotation_6d_to_rotation_matrix',
            'rotation_6d_to_axis_angle',
            'rotation_6d_to_quaternion',
+           'multiply_quaternion',
+           'inverse_quaternion',
            'inverse_transformation',
            'pose_to_transformation_matrix',
            'transform_points',
@@ -226,6 +228,45 @@ def inverse_transformation(x: torch.Tensor) -> torch.Tensor:
     x_inv[..., :3, 3] = - (Rx_inv @ x[..., :3, 3, None])[..., 0]  # - R^1 * t
     x_inv[..., 3, 3] = 1
     return x_inv
+
+
+def inverse_quaternion(q: torch.Tensor) -> torch.Tensor:
+    """Compute the inverse of a quaternion, defined as
+
+    q⁻¹ = (qw - qx*x - qy*y - qz*z) / (qw**2 + qx**2 + qy**2 + qz**2)
+
+    Implementation similar to pytorch3d's implementation, find can be found at
+    https://pytorch3d.readthedocs.io/en/latest/_modules/pytorch3d/transforms/rotation_conversions.html
+
+    Args:
+        q: input quaternion (..., 4), in order (x,y,z,w).
+    """
+    if q.shape[-1] != 4:
+        raise ValueError(f"Invalid shape of quaternion, expected (..., 4), got {q.shape}")
+    scaling = torch.tensor([-1, -1, -1, 1], device=q.device)
+    return q * scaling
+
+
+def multiply_quaternion(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    """Multiply two quaternions.
+
+    Implementation similar to pytorch3d's implementation, find can be found at
+    https://pytorch3d.readthedocs.io/en/latest/_modules/pytorch3d/transforms/rotation_conversions.html
+
+    Args:
+        a: first input quaternion (..., 4), in order (x,y,z,w).
+        b: second input quaternion (..., 4), in order (x,y,z,w).
+    Returns:
+        The product of a and b, a tensor of quaternions shape (..., 4).
+    """
+    ax, ay, az, aw = torch.unbind(a, -1)
+    bx, by, bz, bw = torch.unbind(b, -1)
+    ow = aw * bw - ax * bx - ay * by - az * bz
+    ox = aw * bx + ax * bw + ay * bz - az * by
+    oy = aw * by - ax * bz + ay * bw + az * bx
+    oz = aw * bz + ax * by - ay * bx + az * bw
+    q_out = torch.stack((ox, oy, oz, ow), -1)
+    return torch.where(q_out[..., 3:4] < 0, -q_out, q_out)
 
 
 def pose_to_transformation_matrix(t: torch.Tensor, q: torch.Tensor) -> torch.Tensor:

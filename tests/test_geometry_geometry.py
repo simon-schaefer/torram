@@ -19,6 +19,15 @@ def test_inverse_transformation(shape):
     assert torch.allclose(T_hat, T, atol=1e-4)
 
 
+@pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3), (5, 6, 3)])
+def test_inverse_quaternion(shape):
+    x3d = torch.rand(shape)
+    q = torram.geometry.angle_axis_to_quaternion(x3d)
+    q_inv = torram.geometry.inverse_quaternion(q)
+    q_unit = torram.geometry.angle_axis_to_quaternion(torch.zeros(shape))
+    assert torch.allclose(torram.geometry.multiply_quaternion(q, q_inv), q_unit, atol=1e-6)
+
+
 @pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
 def test_angle_axis_to_rotation_matrix(shape):
     x3d = torch.rand(shape)
