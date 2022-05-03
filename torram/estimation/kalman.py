@@ -44,10 +44,14 @@ def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: 
     x_f = x_hat + torch.einsum('...ij, ...j->...i', K, z - x_hat)
     I = torch.eye(n, device=K.device, dtype=K.dtype)
     P_f = (I - K) @ P_hat @ (I - K).transpose(-1, -2) + K @ R @ K.transpose(-1, -2)
+
+    assert torch.all(torch.real(torch.linalg.eig(P_f).eigenvalues) > 0)  # ensure positive definiteness
+    P_f = 0.5 * (P_f + P_f.transpose(-1, -2))  # ensure symmetry
+    assert torch.allclose(P_f, P_f.transpose(-1, -2))
     return MultivariateNormal(loc=x_f, covariance_matrix=P_f)
 
 
-def kalman_update_with_distributions(x: Distribution, z: Distribution, eps: float = 1e-5) -> MultivariateNormal:
+def kalman_update_with_distributions(x: Distribution, z: Distribution) -> MultivariateNormal:
     def get_covariance_matrix(d: Distribution):
         if isinstance(d, Normal):
             out = torram.geometry.diag_last(d.variance)
@@ -55,10 +59,10 @@ def kalman_update_with_distributions(x: Distribution, z: Distribution, eps: floa
             out = d.covariance_matrix
         else:
             raise NotImplementedError(f"Covariance retrieval not implemented for distribution type {type(d)}")
-        eps_diagonal = torch.ones(out.shape[:-1], device=out.device, dtype=out.dtype) * eps
-        eps_diagonal = torram.geometry.diag_last(eps_diagonal)
-        return out + eps_diagonal
+        return out
 
     P_hat = get_covariance_matrix(x)
     R = get_covariance_matrix(z)
+    assert torch.all(torch.real(torch.linalg.eig(P_hat).eigenvalues) > 0)  # ensure positive definiteness
+    assert torch.all(torch.real(torch.linalg.eig(R).eigenvalues) > 0)
     return kalman_update(x.mean, z.mean, P_hat=P_hat, R=R)
