@@ -1,5 +1,6 @@
 # Python cache.
 *.egg-info
+__pycache__/
 
 # Testing cache.
 .benchmarks/
