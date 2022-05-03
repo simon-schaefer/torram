@@ -1,3 +1,4 @@
+import matplotlib
 import kornia
 import torch
 import torram
@@ -86,8 +87,9 @@ def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores
     if len(keypoints.shape) != 2 or len(keypoints) != len(scores):
         raise ValueError(f"Not matching keypoint and scores, got {keypoints.shape} and {scores.shape}")
 
+    norm = matplotlib.colors.Normalize(vmin=0, vmax=1)
+    color_map = cm.ScalarMappable(norm=norm, cmap=matplotlib.cm.rainbow)
     for keypoint_k, score_k in zip(keypoints, scores):
-        color_k = cm.rainbow(float(score_k))[:3]  # RGBA -> RGB
-        color_k = tuple(int(255 * c) for c in color_k)
+        color_k = color_map.to_rgba(float(score_k), bytes=True)[:3]  # RGBA -> RGB
         image = torchvision.utils.draw_keypoints(image, keypoint_k[None, None], colors=color_k, radius=radius)
     return image
