@@ -42,9 +42,9 @@ def test_draw_keypoints_weighted():
     os.makedirs(output_directory, exist_ok=True)
 
     image = torch.zeros(image_shape, dtype=torch.uint8)
-    points = torch.stack([torch.randint(0, image_shape[1], size=(4, ), dtype=torch.long),
-                          torch.randint(0, image_shape[2], size=(4, ), dtype=torch.long)], dim=1)
-    scores = torch.rand((4, ), dtype=torch.float32)
+    points = torch.stack([torch.randint(0, image_shape[1], size=(20, ), dtype=torch.long),
+                          torch.randint(0, image_shape[2], size=(20, ), dtype=torch.long)], dim=1)
+    scores = torch.rand((20, ), dtype=torch.float32)
 
     out = torram.visualization.draw_keypoints_weighted(image, points, scores=scores)
     assert out.shape == (3, 100, 100)

@@ -69,8 +69,9 @@ def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores
                             ) -> torch.Tensor:
     """Draw keypoints in image colored by their scoring (0 <= score <= 1).
 
-    This function uses the matplotlib colormap 'coolwarm', ranging from blue for low values to red for high values.
+    This function uses the matplotlib colormap 'rainbow', ranging from blue for low values to red for high values.
     The scores are not clamped, instead a value error is thrown if they are not in [0, 1].
+    Colormap documentation: https://matplotlib.org/3.5.0/tutorials/colors/colormaps.html
 
     Args:
         image: base image (3, H, W).
@@ -86,7 +87,7 @@ def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores
         raise ValueError(f"Not matching keypoint and scores, got {keypoints.shape} and {scores.shape}")
 
     for keypoint_k, score_k in zip(keypoints, scores):
-        color_k = cm.coolwarm(float(score_k))[:3]  # RGBA -> RGB
+        color_k = cm.rainbow(float(score_k))[:3]  # RGBA -> RGB
         color_k = tuple(int(255 * c) for c in color_k)
         image = torchvision.utils.draw_keypoints(image, keypoint_k[None, None], colors=color_k, radius=radius)
     return image
