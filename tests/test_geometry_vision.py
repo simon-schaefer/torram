@@ -38,3 +38,39 @@ def test_is_in_image_only_one(shape):
     pixel[..., 0, :] = 1
     is_in_image = torram.geometry.is_in_image(pixel, width=5, height=5)
     assert torch.all(is_in_image[..., 0])
+
+
+@pytest.mark.parametrize("batch_size", (1, 3))
+@pytest.mark.parametrize("num_patches", (1, 4))
+@pytest.mark.parametrize("width", (20, 40))
+@pytest.mark.parametrize("height", (20, 40))
+def test_crop_patches(batch_size, num_patches, width, height):
+    patch_size = 4
+
+    images = torch.rand((batch_size, 3, height, width))
+    x_center = torch.randint(patch_size, width - patch_size, size=(batch_size, num_patches))
+    y_center = torch.randint(patch_size, height - patch_size, size=(batch_size, num_patches))
+    center_points = torch.stack((x_center, y_center), dim=-1)
+    patches = torram.geometry.crop_patches(images, center_points, width=patch_size, height=patch_size)
+
+    assert patches.shape == (batch_size, num_patches, 3, 2*patch_size, 2*patch_size)
+    for b in range(batch_size):
+        for n in range(num_patches):
+            cx = center_points[b, n, 0]
+            cy = center_points[b, n, 1]
+            expected = images[b, :, cy-patch_size:cy+patch_size, cx-patch_size:cx+patch_size]
+            assert torch.allclose(patches[b, n], expected, atol=1e-3)
+
+
+def test_crop_patches_outside_image():
+    images = torch.rand((4, 3, 20, 20))
+    points = torch.randint(25, 35, size=(4, 5, 2))
+    patches = torram.geometry.crop_patches(images, points, width=4, height=4)
+    assert torch.allclose(patches, torch.zeros_like(patches))
+
+
+def test_crop_patches_half_in():
+    images = torch.rand((1, 3, 20, 20))
+    points = torch.tensor([20, 10]).view(1, 1, 2)
+    patches = torram.geometry.crop_patches(images, points, width=4, height=4)
+    assert torch.all(patches[:, :, 4:, :] == 0)

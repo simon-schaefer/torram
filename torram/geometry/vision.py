@@ -4,6 +4,7 @@ from kornia.geometry import depth_to_3d, project_points
 from typing import Tuple, Union
 
 __all__ = ['depth_to_3d',
+           'crop_patches',
            'project_points',
            'is_in_image',
            'pad']
@@ -47,3 +48,44 @@ def pad(images: torch.Tensor, K: torch.Tensor, output_shape: Tuple[int, int]) ->
     K_padded[..., 0, 2] += dw // 2
     K_padded[..., 1, 2] += dh // 2
     return images_padded, K_padded
+
+
+@torch.jit.script
+def crop_patches(images: torch.Tensor, points: torch.Tensor, width: int, height: int) -> torch.Tensor:
+    """Crop patches from center coordinate with size (2*height, 2*width). If a part of the patch is
+    outside the image, zero padding is used.
+
+    Args:
+        images: base images (B, 3, H, W).
+        points: center points of cropping in image coordinates (B, N, 2).
+        width: number of pixels between center and left/right side of the cropping.
+        height: number of pixels between center and top/bottom side of the cropping.
+    Returns:
+        patches: (B, N, 2*height, 2*width).
+    """
+    if images.shape[:-3] != points.shape[:-2]:
+        raise ValueError(f"Got non-matching images and points tensors, got {images.shape} and {points.shape}")
+    if len(images.shape) != 4 or images.shape[-3] != 3:
+        raise ValueError(f"Got invalid images, expected (B, 3, H, W), got {images.shape}")
+    if len(points.shape) != 3 or points.shape[-1] != 2:
+        raise ValueError(f"Got invalid pixel coordinates, expected (B, N, 2), got {points.shape}")
+    if width <= 0 or height <= 0:
+        raise ValueError(f"Got invalid width/height, expected width/height > 0")
+
+    batch_size, _, img_height, img_width = images.shape
+    _, num_patches, _ = points.shape
+    patches = torch.zeros((batch_size, num_patches, 3, 2*height, 2*width), dtype=images.dtype, device=images.device)
+    for k in range(batch_size):
+        for n in range(num_patches):
+            x_min = torch.clamp(points[k, n, 0] - width, 0, img_width)
+            x_max = torch.clamp(points[k, n, 0] + width, 0, img_width)
+            y_min = torch.clamp(points[k, n, 1] - height, 0, img_height)
+            y_max = torch.clamp(points[k, n, 1] + height, 0, img_height)
+
+            x1 = x_min - (points[k, n, 0] - width)
+            x2 = x_max - (points[k, n, 0] - width)
+            y1 = y_min - (points[k, n, 1] - height)
+            y2 = y_max - (points[k, n, 1] - height)
+
+            patches[k, n, :, y1:y2, x1:x2] = images[k, :, y_min:y_max, x_min:x_max]
+    return patches
