@@ -104,6 +104,8 @@ class Trainer:  # pragma: no cover
         steps_cache = collections.defaultdict(int)
         loss_cache = collections.defaultdict(int)
 
+        logging.debug("Initial test and visualization step for checking if everything works")
+        self.test_step(global_step=global_step)
         self.model.train()
         while global_step < num_global_steps:
             self.logger.add_scalar("epoch", epoch, global_step=global_step)
