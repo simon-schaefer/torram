@@ -66,12 +66,12 @@ def draw_reprojection(pc_C: torch.Tensor, image: torch.Tensor, K: torch.Tensor,
 
 
 @torch.no_grad()
-def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores: torch.Tensor, radius: int = 1
-                            ) -> torch.Tensor:
+def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores: torch.Tensor, radius: int = 1,
+                            colormap: str = "rainbow") -> torch.Tensor:
     """Draw keypoints in image colored by their scoring (0 <= score <= 1).
 
-    This function uses the matplotlib colormap 'rainbow', ranging from blue for low values to red for high values.
-    The scores are not clamped, instead a value error is thrown if they are not in [0, 1].
+    By default, this function uses the matplotlib colormap 'rainbow', ranging from blue for low values to
+    red for high values. The scores are not clamped, instead a value error is thrown if they are not in [0, 1].
     Colormap documentation: https://matplotlib.org/3.5.0/tutorials/colors/colormaps.html
 
     Args:
@@ -79,6 +79,7 @@ def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores
         keypoints: points to draw in image (N, 2).
         scores: weights for color evaluation, (0 <= scores <= 1).
         radius: keypoint radius.
+        colormap: name of matplotlib colormap.
     """
     if torch.any(scores < 0) or torch.any(scores > 1):
         raise ValueError("Invalid scores, they must be in [0, 1]")
@@ -88,7 +89,7 @@ def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores
         raise ValueError(f"Not matching keypoint and scores, got {keypoints.shape} and {scores.shape}")
 
     norm = matplotlib.colors.Normalize(vmin=0, vmax=1)
-    color_map = cm.ScalarMappable(norm=norm, cmap=matplotlib.cm.rainbow)
+    color_map = cm.ScalarMappable(norm=norm, cmap=cm.get_cmap(colormap))
     for keypoint_k, score_k in zip(keypoints, scores):
         color_k = color_map.to_rgba(float(score_k), bytes=True)[:3]  # RGBA -> RGB
         image = torchvision.utils.draw_keypoints(image, keypoint_k[None, None], colors=color_k, radius=radius)
