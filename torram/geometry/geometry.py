@@ -109,22 +109,69 @@ def angle_axis_to_quaternion(angle_axis: torch.Tensor) -> torch.Tensor:
 def rotation_matrix_to_quaternion(rotation_matrix: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     r"""Convert 3x3 rotation matrix to 4d quaternion vector (x, y, z, w).
 
+    This implementation is a numerically more stable implementation of the one in kornia.
+    https://kornia.readthedocs.io/en/latest/_modules/kornia/geometry/conversions.html#rotation_matrix_to_quaternion.
+    Instead of adding an eps to avoid negative sqrt roots, the values are clamped to eps.
+
     Args:
         rotation_matrix: the rotation matrix to convert with shape :math:`(..., 3, 3)`.
         eps: small value to avoid zero division.
     Return:
         the rotation in quaternion with shape :math:`(..., 4)`.
     """
+    if not isinstance(rotation_matrix, torch.Tensor):
+        raise TypeError(f"Input type is not a torch.Tensor. Got {type(rotation_matrix)}")
+    if not rotation_matrix.shape[-2:] == (3, 3):
+        raise ValueError(f"Input size must be a (*, 3, 3) tensor. Got {rotation_matrix.shape}")
+
+    def safe_zero_division(numerator: torch.Tensor, denominator: torch.Tensor) -> torch.Tensor:
+        eps: float = torch.finfo(numerator.dtype).tiny  # type: ignore
+        return numerator / torch.clamp(denominator, min=eps)
+
     shape = rotation_matrix.shape[:-2]
     if len(shape) == 0:  # input tensor two-dimensional
-        rotmat_flat = rotation_matrix[None]
+        rotation_matrix_flat = rotation_matrix[None]
     else:
-        rotmat_flat = torch.flatten(rotation_matrix, end_dim=-3)
+        rotation_matrix_flat = torch.flatten(rotation_matrix, end_dim=-3)
+    rotation_matrix_vec: torch.Tensor = rotation_matrix.view(*rotation_matrix_flat.shape[:-2], 9)
+    m00, m01, m02, m10, m11, m12, m20, m21, m22 = torch.chunk(rotation_matrix_vec, chunks=9, dim=-1)
+    trace: torch.Tensor = m00 + m11 + m22
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
-        quaternion_flat = kornia.geometry.rotation_matrix_to_quaternion(rotmat_flat, order=q_order, eps=eps)
+    def trace_positive_cond():
+        sq = torch.sqrt(torch.clamp_min(trace + 1.0, min=eps)) * 2.0  # sq = 4 * qw.
+        qw = 0.25 * sq
+        qx = safe_zero_division(m21 - m12, sq)
+        qy = safe_zero_division(m02 - m20, sq)
+        qz = safe_zero_division(m10 - m01, sq)
+        return torch.cat((qx, qy, qz, qw), dim=-1)
+
+    def cond_1():
+        sq = torch.sqrt(torch.clamp_min(1.0 + m00 - m11 - m22, min=eps)) * 2.0  # sq = 4 * qx.
+        qw = safe_zero_division(m21 - m12, sq)
+        qx = 0.25 * sq
+        qy = safe_zero_division(m01 + m10, sq)
+        qz = safe_zero_division(m02 + m20, sq)
+        return torch.cat((qx, qy, qz, qw), dim=-1)
+
+    def cond_2():
+        sq = torch.sqrt(torch.clamp_min(1.0 + m11 - m00 - m22, eps)) * 2.0  # sq = 4 * qy.
+        qw = safe_zero_division(m02 - m20, sq)
+        qx = safe_zero_division(m01 + m10, sq)
+        qy = 0.25 * sq
+        qz = safe_zero_division(m12 + m21, sq)
+        return torch.cat((qx, qy, qz, qw), dim=-1)
+
+    def cond_3():
+        sq = torch.sqrt(torch.clamp_min(1.0 + m22 - m00 - m11, min=eps)) * 2.0  # sq = 4 * qz.
+        qw = safe_zero_division(m10 - m01, sq)
+        qx = safe_zero_division(m02 + m20, sq)
+        qy = safe_zero_division(m12 + m21, sq)
+        qz = 0.25 * sq
+        return torch.cat((qx, qy, qz, qw), dim=-1)
+
+    where_2 = torch.where(m11 > m22, cond_2(), cond_3())
+    where_1 = torch.where((m00 > m11) & (m00 > m22), cond_1(), where_2)
+    quaternion_flat = torch.where(trace > 0.0, trace_positive_cond(), where_1)
     return quaternion_flat.view(*shape, 4)
 
 

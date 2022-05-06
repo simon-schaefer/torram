@@ -119,10 +119,10 @@ def q4d_wrt_T(T: torch.Tensor) -> torch.Tensor:
         J[tlz, 0, :3, :3] = -0.25 * ((R[tlz, k, j] - R[tlz, j, k]) * i_r_cube)[:, None, None] * r_eye
         J[tlz, 0, k, j] = 0.5 * i_r
         J[tlz, 0, j, k] = -0.5 * i_r
-        J[tlz, 1 + j, :3, :3] = -0.25 * ((R[tlz, j, i] + R[tlz, i, j]) * i_r_cube)[:, None, None] * r_eye
+        J[tlz, 1 + j, :3, :3] = -0.25 * ((R[tlz, j, i] + R[tlz, i, j]) * i_r_cube)[:, None, None] * r_eye  # noqa
         J[tlz, 1 + j, j, i] = 0.5 * i_r
         J[tlz, 1 + j, i, j] = 0.5 * i_r
-        J[tlz, 1 + k, :3, :3] = -0.25 * ((R[tlz, k, i] + R[tlz, i, k]) * i_r_cube)[:, None, None] * r_eye
+        J[tlz, 1 + k, :3, :3] = -0.25 * ((R[tlz, k, i] + R[tlz, i, k]) * i_r_cube)[:, None, None] * r_eye  # noqa
         J[tlz, 1 + k, k, i] = 0.5 * i_r
         J[tlz, 1 + k, i, k] = 0.5 * i_r
 

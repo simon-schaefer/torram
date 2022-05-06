@@ -25,12 +25,12 @@ class EvaluatorFactory:
         model_output = model(batch)
         return self.eval_function(batch, model_output, reduce_mean=reduce_mean)
 
-    def wloader(self, model, data_loader: torch.utils.data.DataLoader, until: Optional[int] = None
-                ) -> Dict[str, torch.Tensor]:
+    def wloader(self, model, data_loader: torch.utils.data.DataLoader, until: Optional[int] = None,
+                dtype: torch.dtype = torch.float32) -> Dict[str, torch.Tensor]:
         if until is not None and until <= 0:
             raise ValueError(f"Invalid value for until, expected integer > 0, got {until}")
 
-        metric_cache = collections.defaultdict(lambda: torch.zeros(0, dtype=torch.float32, device=self.device))
+        metric_cache = collections.defaultdict(lambda: torch.zeros(0, dtype=dtype, device=self.device))
         for j, batch in enumerate(data_loader):
             if until is not None and j > until:
                 break

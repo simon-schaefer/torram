@@ -61,13 +61,13 @@ def test_t_wrt_T(shape, delta: float = 1e-6):
 @pytest.mark.parametrize("shape", ((4, 4), (8, 4, 4), (1, 4, 4), (5, 8, 4, 4)))
 def test_q4d_wrt_T(shape, delta: float = 1e-6):
     x = get_random_transform(shape[:-2])
-    q = torram.geometry.rotation_matrix_to_quaternion(x[..., :3, :3].contiguous())
+    q = torram.geometry.rotation_matrix_to_quaternion(x[..., :3, :3].contiguous(), eps=1e-12)
     J_hat = torram_jacobians.q4d_wrt_T(x).view(*shape[:-2], 4, 4, 4)
     for i in range(4):
         for j in range(4):
             x_ = x.clone()
             x_[..., i, j] += delta
-            q_ = kornia.geometry.rotation_matrix_to_quaternion(x_[..., :3, :3].contiguous())
+            q_ = kornia.geometry.rotation_matrix_to_quaternion(x_[..., :3, :3].contiguous(), eps=1e-12)
             J = (q_ - q) / delta
             assert torch.allclose(J_hat[..., i, j], J, atol=1e-4)
 
