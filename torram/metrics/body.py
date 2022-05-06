@@ -12,13 +12,11 @@ def mpjpe(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         x_hat: predicted joints (B, N_joints, 3).
         x: ground-truth joints (B, N_joints, 3).
     """
-    if not x_hat.ndim == x.ndim == 3 or not x.shape[-1] == x_hat.shape[-1] == 3:
+    if not x_hat.ndim == x.ndim == 3:
         raise ValueError(f"Invalid joint shape, expected (B, N, 3), got {x.shape} and {x_hat.shape}")
-    if x.shape != x_hat.shape:
-        raise ValueError(f"Non matching prediction and target, got {x.shape} and {x_hat.shape}")
     x_hat_aligned = __align_by_pelvis(x_hat)
     x_aligned = __align_by_pelvis(x)
-    return torch.mean((x_hat_aligned - x_aligned).norm(dim=-1), dim=-1)
+    return torram.metrics.pve(x_hat_aligned, x_aligned)
 
 
 def pa_mpjpe(x_hat: torch.Tensor, x: torch.Tensor, align_scale: bool = True) -> torch.Tensor:

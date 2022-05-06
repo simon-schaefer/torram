@@ -35,7 +35,7 @@ def occupancy_grid_from_point_cloud(point_cloud: torch.Tensor, T_B_C: torch.Tens
 
     logging.debug(f"... transforming points to {num_bodies} body coordinate system")
     point_cloud_homo = torram.geometry.convert_points_to_homogeneous(point_cloud)
-    T_G_B = torch.eye(4, device=device)
+    T_G_B = torch.eye(4, device=device, dtype=point_cloud.dtype)
     T_G_B[0, 3] = grid_size[0] / 2
     T_G_B[1, 3] = grid_size[1] / 2
     T_G_B[2, 3] = grid_size[2] / 2

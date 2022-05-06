@@ -36,10 +36,7 @@ def pve(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         x_hat: predicted vertices (B, N, 3).
         x: ground-truth vertices (B, N, 3).
     """
-    if not x_hat.ndim == x.ndim == 3 or not x.shape[-1] == x_hat.shape[-1] == 3:
-        raise ValueError(f"Invalid joint shape, expected (B, N, 3), got {x.shape} and {x_hat.shape}")
-    if x.shape != x_hat.shape:
-        raise ValueError(f"Non matching prediction and target, got {x.shape} and {x_hat.shape}")
+    __check_matching_3d_point_clouds(x_hat, x)
     return torch.mean((x_hat - x).norm(dim=-1), dim=-1)
 
 
@@ -53,10 +50,7 @@ def pa_pve(x_hat: torch.Tensor, x: torch.Tensor, align_scale: bool = True) -> to
         x: ground-truth joints (B, N, 3).
         align_scale: align scale or only rotation and translation?
     """
-    if not x_hat.ndim == x.ndim == 3 or not x.shape[-1] == x_hat.shape[-1] == 3:
-        raise ValueError(f"Invalid point cloud shape, expected (B, N, 3), got {x.shape} and {x_hat.shape}")
-    if x.shape != x_hat.shape:
-        raise ValueError(f"Non matching prediction and target, got {x.shape} and {x_hat.shape}")
+    __check_matching_3d_point_clouds(x_hat, x)
     batch_size, _, _ = x.shape
     x_hat_similar = torch.zeros_like(x_hat)
     for k in range(batch_size):
@@ -95,7 +89,7 @@ def __align_umeyama(model: torch.Tensor, data: torch.Tensor, align_scale: bool =
     U_svd, D_svd, V_svd = torch.linalg.svd(C)
     D_svd = torch.diag(D_svd)
 
-    S = torch.eye(3, device=model.device)
+    S = torch.eye(3, device=model.device, dtype=U_svd.dtype)
     if torch.linalg.det(U_svd) * torch.linalg.det(V_svd) < 0:
         S[2, 2] = -1
 
@@ -110,3 +104,10 @@ def __align_umeyama(model: torch.Tensor, data: torch.Tensor, align_scale: bool =
         s = 1.0
     t = mu_M - s * torch.einsum('ij,j->i', R, mu_D)
     return s, R, t
+
+
+def __check_matching_3d_point_clouds(x_hat: torch.Tensor, x: torch.Tensor):
+    if not x_hat.ndim == x.ndim == 3 or not x.shape[-1] == x_hat.shape[-1] == 3:
+        raise ValueError(f"Invalid point cloud shape, expected (B, N, 3), got {x.shape} and {x_hat.shape}")
+    if x.shape != x_hat.shape:
+        raise ValueError(f"Non matching prediction and target, got {x.shape} and {x_hat.shape}")

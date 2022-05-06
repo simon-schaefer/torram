@@ -290,7 +290,7 @@ def inverse_quaternion(q: torch.Tensor) -> torch.Tensor:
     """
     if q.shape[-1] != 4:
         raise ValueError(f"Invalid shape of quaternion, expected (..., 4), got {q.shape}")
-    scaling = torch.tensor([-1, -1, -1, 1], device=q.device)
+    scaling = torch.tensor([-1, -1, -1, 1], device=q.device, dtype=q.dtype)
     return q * scaling
 
 
