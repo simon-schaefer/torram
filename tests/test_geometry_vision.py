@@ -74,3 +74,18 @@ def test_crop_patches_half_in():
     points = torch.tensor([20, 10]).view(1, 1, 2)
     patches = torram.geometry.crop_patches(images, points, width=4, height=4)
     assert torch.all(patches[:, :, 4:, :] == 0)
+
+
+def test_box_including_2d():
+    points = torch.randint(-20, 200, size=(200, 2))
+    bbox = torram.geometry.box_including_2d(points, offset=0)
+    assert bbox[0] == torch.min(points[:, 0])
+    assert bbox[1] == torch.min(points[:, 1])
+    assert bbox[2] == torch.max(points[:, 0])
+    assert bbox[3] == torch.max(points[:, 1])
+
+
+def test_box_including_2d_bounds():
+    points = torch.tensor([[-2, 3], [3, 7], [0, 120]])
+    bbox = torram.geometry.box_including_2d(points, x_max=100, y_max=100, offset=0)
+    assert torch.all(torch.less_equal(bbox, 100))

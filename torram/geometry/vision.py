@@ -1,12 +1,13 @@
 import torch
 import torch.nn.functional
 from kornia.geometry import depth_to_3d, project_points
-from typing import Tuple, Union
+from typing import Optional, Tuple, Union
 
 __all__ = ['depth_to_3d',
            'crop_patches',
            'project_points',
            'is_in_image',
+           'box_including_2d',
            'pad']
 
 
@@ -74,7 +75,7 @@ def crop_patches(images: torch.Tensor, points: torch.Tensor, width: int, height:
 
     batch_size, _, img_height, img_width = images.shape
     _, num_patches, _ = points.shape
-    patches = torch.zeros((batch_size, num_patches, 3, 2*height, 2*width), dtype=images.dtype, device=images.device)
+    patches = torch.zeros((batch_size, num_patches, 3, 2 * height, 2 * width), dtype=images.dtype, device=images.device)
     for k in range(batch_size):
         for n in range(num_patches):
             x_min = torch.clamp(points[k, n, 0] - width, 0, img_width)
@@ -89,3 +90,31 @@ def crop_patches(images: torch.Tensor, points: torch.Tensor, width: int, height:
 
             patches[k, n, :, y1:y2, x1:x2] = images[k, :, y_min:y_max, x_min:x_max]
     return patches
+
+
+def box_including_2d(points_2d: torch.Tensor, x_min: Optional[int] = None, y_min: Optional[int] = None,
+                     x_max: Optional[int] = None, y_max: Optional[int] = None, offset: int = 0) -> torch.Tensor:
+    """Compute the smallest rectangle that is in the given bounds and includes all the 2D points.
+
+    Args:
+        points_2d: image points to contain [..., 2].
+        x_min: minimal x coordinate.
+        y_min: minimal y coordinate.
+        x_max: maximal x coordinate.
+        y_max: maximal y coordinate.
+        offset: offset from the smallest possible box (in both directions).
+    Returns:
+        boxes [..., 4].
+    """
+    u_min = torch.min(points_2d[..., 0], dim=-1).values - offset
+    u_max = torch.max(points_2d[..., 0], dim=-1).values + offset
+    v_min = torch.min(points_2d[..., 1], dim=-1).values - offset
+    v_max = torch.max(points_2d[..., 1], dim=-1).values + offset
+
+    if x_min is not None or x_max is not None:
+        u_min = torch.clamp(u_min, x_min, x_max)
+        u_max = torch.clamp(u_max, y_min, y_max)
+    if y_min is not None or y_max is not None:
+        v_min = torch.clamp(v_min, x_min, x_max)
+        v_max = torch.clamp(u_max, y_min, y_max)
+    return torch.stack([u_min, v_min, u_max, v_max], dim=-1)
