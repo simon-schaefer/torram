@@ -42,6 +42,8 @@ def draw_keypoints(
     Returns:
         img (Tensor[C, H, W]): Image Tensor of dtype uint8 with keypoints drawn.
     """
+    if keypoints.ndim == 2:
+        keypoints = keypoints[None]
     return torchvision.utils.draw_keypoints(image, keypoints, connectivity, colors, radius=radius, width=width)
 
 
