@@ -113,8 +113,8 @@ def box_including_2d(points_2d: torch.Tensor, x_min: Optional[int] = None, y_min
 
     if x_min is not None or x_max is not None:
         u_min = torch.clamp(u_min, x_min, x_max)
-        u_max = torch.clamp(u_max, y_min, y_max)
+        u_max = torch.clamp(u_max, x_min, x_max)
     if y_min is not None or y_max is not None:
-        v_min = torch.clamp(v_min, x_min, x_max)
-        v_max = torch.clamp(u_max, y_min, y_max)
+        v_min = torch.clamp(v_min, y_min, y_max)
+        v_max = torch.clamp(v_max, y_min, y_max)
     return torch.stack([u_min, v_min, u_max, v_max], dim=-1)

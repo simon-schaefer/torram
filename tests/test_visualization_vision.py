@@ -5,8 +5,8 @@ import torram
 
 def test_draw_keypoints_outside_points():
     image = torch.zeros((3, 10, 10), dtype=torch.uint8)
-    points = torch.tensor([[11, 0], [-1, 1], [-1, -1]], dtype=torch.long)
-    out_hat = torram.visualization.draw_keypoints(image, points[None])
+    points = torch.tensor([[11, 0], [-2, 1], [-1, -1]], dtype=torch.long)
+    out_hat = torram.visualization.draw_keypoints(image, points[None], radius=1)
     assert torch.allclose(out_hat, image)
 
 
