@@ -1,10 +1,11 @@
 import matplotlib
 import kornia
 import torch
+import torchvision
 
 import matplotlib.cm as cm
-from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks, draw_keypoints
-from typing import Tuple, Union
+from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
+from typing import Optional, List, Tuple, Union
 
 
 __all__ = ['draw_bounding_boxes',
@@ -12,6 +13,36 @@ __all__ = ['draw_bounding_boxes',
            'draw_keypoints',
            'draw_reprojection',
            'draw_keypoints_weighted']
+
+
+@torch.no_grad()
+def draw_keypoints(
+    image: torch.Tensor,
+    keypoints: torch.Tensor,
+    connectivity: Optional[List[Tuple[int, int]]] = None,
+    colors: Optional[Union[str, Tuple[int, int, int]]] = "red",
+    radius: int = 2,
+    width: int = 3,
+) -> torch.Tensor:
+    """
+    Draws Keypoints on given RGB image.
+    The values of the input image should be uint8 between 0 and 255.
+
+    Args:
+        image (Tensor): Tensor of shape (3, H, W) and dtype uint8.
+        keypoints (Tensor): Tensor of shape (num_instances, K, 2) the K keypoints location for each of the N instances,
+            in the format [x, y].
+        connectivity (List[Tuple[int, int]]]): A List of tuple where,
+            each tuple contains pair of keypoints to be connected.
+        colors (str, Tuple): The color can be represented as
+            PIL strings e.g. "red" or "#FF00FF", or as RGB tuples e.g. ``(240, 10, 157)``.
+        radius (int): Integer denoting radius of keypoint.
+        width (int): Integer denoting width of line connecting keypoints.
+
+    Returns:
+        img (Tensor[C, H, W]): Image Tensor of dtype uint8 with keypoints drawn.
+    """
+    return torchvision.utils.draw_keypoints(image, keypoints, connectivity, colors, radius=radius, width=width)
 
 
 @torch.no_grad()
