@@ -22,11 +22,11 @@ class ModelProtocol(Protocol):  # pragma: no cover
     def evaluate(self, batch, model_output, reduce_mean: bool) -> Dict[str, torch.Tensor]:
         ...
 
-    def log_values(self, batch, model_output, logger, global_step: int, prefix: str = ""):
-        ...
-
-    def visualize(self, batch, model_output, logger, global_step: int, prefix: str = ""):
-        ...
+    # Optional methods
+    # def log_values(self, batch, model_output, logger, global_step: int, prefix: str = ""):
+    #     ...
+    # def visualize(self, batch, model_output, logger, global_step: int, prefix: str = ""):
+    #     ...
 
 
 class Trainer:  # pragma: no cover
