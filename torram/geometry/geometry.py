@@ -3,7 +3,6 @@ import torch
 import kornia.geometry.conversions
 from kornia.geometry import (
     convert_points_to_homogeneous,
-    rotation_matrix_to_angle_axis,
     transform_points
 )
 from torch.nn import functional as F
@@ -104,6 +103,72 @@ def angle_axis_to_quaternion(angle_axis: torch.Tensor) -> torch.Tensor:
         q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
         quaternion_flat = kornia.geometry.angle_axis_to_quaternion(aa_flat, order=q_order)
     return quaternion_flat.view(*shape, 4)
+
+
+def rotation_matrix_to_angle_axis(rotation_matrix: torch.Tensor, epsilon: float = 1e-4) -> torch.Tensor:
+    """Convert 3x3 rotation matrix to axis angle representation.
+    Math inspired by https://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToAngle/index.htm
+
+    Args:
+        rotation_matrix: the rotation matrix to convert with shape :math:`(..., 3, 3)`.
+        epsilon: norm for singularity check.
+    Return:
+        the rotation in axis angle representation with shape :math:`(..., 3)`.
+    """
+    if not isinstance(rotation_matrix, torch.Tensor):
+        raise TypeError(f"Input type is not a torch.Tensor. Got {type(rotation_matrix)}")
+    if not rotation_matrix.shape[-2:] == (3, 3):
+        raise ValueError(f"Input size must be a (*, 3, 3) tensor. Got {rotation_matrix.shape}")
+
+    output = torch.zeros((*rotation_matrix.shape[:-2], 3), dtype=rotation_matrix.dtype, device=rotation_matrix.device)
+    trace = (rotation_matrix[..., 0, 0] + rotation_matrix[..., 1, 1] + rotation_matrix[..., 2, 2]).unsqueeze(-1)
+    ymz = (rotation_matrix[..., 2, 1] - rotation_matrix[..., 1, 2]).unsqueeze(-1)
+    xmz = (rotation_matrix[..., 0, 2] - rotation_matrix[..., 2, 0]).unsqueeze(-1)
+    xmy = (rotation_matrix[..., 1, 0] - rotation_matrix[..., 0, 1]).unsqueeze(-1)
+    yz = (rotation_matrix[..., 2, 1] + rotation_matrix[..., 1, 2]).unsqueeze(-1)
+    xz = (rotation_matrix[..., 0, 2] + rotation_matrix[..., 2, 0]).unsqueeze(-1)
+    xy = (rotation_matrix[..., 1, 0] + rotation_matrix[..., 0, 1]).unsqueeze(-1)
+
+    # Singularity handling.
+    is_singular = (ymz.abs() < epsilon) & (xmz.abs() < epsilon) & (xmy.abs() < epsilon)
+    is_no_rotation = (yz.abs() < epsilon) & (xz.abs() < epsilon) & (xy.abs() < epsilon) & ((trace - 3).abs() < epsilon)
+    xx = (rotation_matrix[..., 0, 0] + 1).unsqueeze(-1) / 2
+    yy = (rotation_matrix[..., 1, 1] + 1).unsqueeze(-1) / 2
+    zz = (rotation_matrix[..., 2, 2] + 1).unsqueeze(-1) / 2
+    xy4 = xy / 4
+    xz4 = xz / 4
+    yz4 = yz / 4
+
+    # 1) Singularity => No rotation when rotation matrix is an identity matrix. Then the angle axis reprensentation
+    # should be zeros, as they have been initialized.
+    # output[is_singular & is_no_rotation] = 0  # no rotation => angle = 0
+    is_sing_rot = is_singular & ~is_no_rotation
+
+    # 2) Singularity => Different variants of 180 degrees rotations.
+    x_180 = torch.tensor([torch.pi, 0, 0], dtype=xx.dtype, device=xx.device)
+    y_180 = torch.tensor([0, torch.pi, 0], dtype=yy.dtype, device=yy.device)
+    z_180 = torch.tensor([0, 0, torch.pi], dtype=zz.dtype, device=zz.device)
+    output = torch.where(is_sing_rot & (xx > yy) & (xx > zz) & (xx < epsilon), x_180, output)
+    output = torch.where(is_sing_rot & (xx > yy) & (xx > zz) & (xx >= epsilon), torch.cat([torch.sqrt(xx),
+                                                                                           xy4/torch.sqrt(xx),
+                                                                                           xz4/torch.sqrt(xx)],
+                                                                                          dim=-1) * torch.pi, output)
+    output = torch.where(is_sing_rot & (yy > xx) & (yy > zz) & (yy < epsilon), y_180, output)
+    output = torch.where(is_sing_rot & (yy > xx) & (yy > zz) & (yy >= epsilon), torch.cat([xy4/torch.sqrt(yy),
+                                                                                           torch.sqrt(yy),
+                                                                                           yz4/torch.sqrt(yy)],
+                                                                                          dim=-1) * torch.pi, output)
+    output = torch.where(is_sing_rot & (zz > xx) & (zz > yy) & (zz < epsilon), z_180, output)
+    output = torch.where(is_sing_rot & (zz > xx) & (zz > yy) & (zz >= epsilon), torch.cat([xz4/torch.sqrt(zz),
+                                                                                           yz4/torch.sqrt(zz),
+                                                                                           torch.sqrt(zz)],
+                                                                                          dim=-1) * torch.pi, output)
+
+    # No singularity case. Normalize the off-diagonal entries to form the vector, with the angle
+    # determined from the rotation matrice's trace.
+    s = torch.sqrt(ymz**2 + xmz**2 + xmy**2)
+    angle = torch.acos((trace - 1) / 2)
+    return torch.where(~is_singular, torch.cat([ymz, xmz, xmy], dim=-1) * angle / s, output)
 
 
 def rotation_matrix_to_quaternion(rotation_matrix: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:

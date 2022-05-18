@@ -45,6 +45,52 @@ def test_rotation_6d_and_angle_axis(shape):
     assert torch.allclose(x3d_hat, x3d_hat)
 
 
+@pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
+def test_rotation_matrix_against_kornia(shape):
+    q3d = torch.rand(shape)
+    rotation_matrix = torram.geometry.angle_axis_to_rotation_matrix(q3d)
+
+    q3d_kornia = kornia.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+    assert torch.allclose(q3d_kornia, q3d)  # just to check kornia implementation
+    q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+    assert torch.allclose(q3d_hat, q3d)
+
+
+def test_rotation_matrix_singularity_eye():
+    rotation_matrix = torch.stack([torch.eye(3),
+                                   torram.geometry.angle_axis_to_rotation_matrix(torch.rand(3))], dim=0)
+    q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+    q3d_kornia = kornia.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+    assert torch.allclose(q3d_hat, q3d_kornia)
+
+
+def test_rotation_matrix_singularity_180_x():
+    rotation_matrix = torch.tensor([[1, 0, 0],
+                                    [0, -1, 0],
+                                    [0, 0, -1]], dtype=torch.float32)
+    q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+    q3d_kornia = kornia.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+    assert torch.allclose(q3d_hat, q3d_kornia)
+
+
+def test_rotation_matrix_singularity_180_y():
+    rotation_matrix = torch.tensor([[-1, 0, 0],
+                                    [0, 1, 0],
+                                    [0, 0, -1]], dtype=torch.float32)
+    q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+    q3d_kornia = kornia.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+    assert torch.allclose(q3d_hat, q3d_kornia)
+
+
+def test_rotation_matrix_singularity_180_z():
+    rotation_matrix = torch.tensor([[-1, 0, 0],
+                                    [0, -1, 0],
+                                    [0, 0, 1]], dtype=torch.float32)
+    q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+    q3d_kornia = kornia.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+    assert torch.allclose(q3d_hat, q3d_kornia)
+
+
 def test_rotation_matrix_to_quaternion_grad_not_nan():
     R = torch.tensor([[1, 0, 0],
                       [0, -1, 0],
@@ -84,4 +130,3 @@ def test_rotation_matrix_to_quaternion_2d():
     R = torram.geometry.angle_axis_to_rotation_matrix(x3d)
     q_hat = torram.geometry.rotation_matrix_to_quaternion(R)
     assert q_hat.shape == (4, )
-
