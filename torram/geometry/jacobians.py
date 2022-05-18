@@ -1,18 +1,71 @@
 import torch
 
+from torch.distributions import Normal, MultivariateNormal
+from torram.geometry import diag_last
+from typing import Union
 
 __all__ = ['T_wrt_t',
            't_wrt_T',
+           'T_wrt_q3d',
            'T_wrt_q4d',
            'q4d_wrt_T',
-           'T_inv_wrt_T']
+           'T_inv_wrt_T',
+           'cov_error_propagation']
 
 
 def T_wrt_t(t: torch.Tensor) -> torch.Tensor:
-    J = torch.zeros((*t.shape[:-1], 16, 3), dtype=t.dtype, device=t.device)
-    J[..., 3, 0] = 1
-    J[..., 7, 1] = 1
-    J[..., 11, 2] = 1
+    J = torch.zeros((*t.shape[:-1], 4, 4, 3), dtype=t.dtype, device=t.device)
+    J[..., 0, 3, 0] = 1
+    J[..., 1, 3, 1] = 1
+    J[..., 2, 3, 2] = 1
+    return J
+
+
+def T_wrt_q3d(q3d: torch.Tensor) -> torch.Tensor:
+    """Jacobian of the transformation q3d (axis-angle vector) -> T (transformation matrix).
+    Math inspired by: https://github.com/dorianhenning/ba-srl/blob/smpl-refactor/scripts/compute_smpl_jacobian.py
+    """
+    batch_size = q3d.shape[:-1]
+    J = torch.zeros((*batch_size, 4, 4, 3), dtype=q3d.dtype, device=q3d.device)
+
+    phi = torch.norm(q3d, dim=-1, keepdim=True)
+    phi2 = phi**2
+    sin_t = torch.sin(phi)
+    sinc_t = sin_t / phi
+    cos_t = torch.cos(phi)
+    c_1 = cos_t - 1.0
+
+    K_ = __batch_skew(q3d)
+    K_2 = K_ @ K_
+    K_ = torch.flatten(K_, start_dim=-2)
+    K_2 = torch.flatten(K_2, start_dim=-2)
+
+    x_vec = torch.tensor([[1, 0, 0]], dtype=q3d.dtype, device=q3d.device)
+    y_vec = torch.tensor([[0, 1, 0]], dtype=q3d.dtype, device=q3d.device)
+    z_vec = torch.tensor([[0, 0, 1]], dtype=q3d.dtype, device=q3d.device)
+    generator_Rx = __batch_skew(x_vec).reshape(9, 1)
+    generator_Ry = __batch_skew(y_vec).reshape(9, 1)
+    generator_Rz = __batch_skew(z_vec).reshape(9, 1)
+
+    rx = q3d[..., 0].unsqueeze(-1)
+    ry = q3d[..., 1].unsqueeze(-1)
+    rz = q3d[..., 2].unsqueeze(-1)
+    zeros = torch.zeros_like(rx)
+
+    special_Kx = torch.cat([zeros, - ry, - rz, - ry, 2 * rx, zeros, - rz, zeros, 2 * rx], dim=-1).unsqueeze(-1)
+    special_Ky = torch.cat([2 * ry, - rx, zeros, - rx, zeros, - rz, zeros, - rz, 2 * ry], dim=-1).unsqueeze(-1)
+    special_Kz = torch.cat([2 * rz, zeros, - rx, zeros, 2 * rz, - ry, - rx, - ry, zeros], dim=-1).unsqueeze(-1)
+
+    special_K = torch.cat((special_Kx, special_Ky, special_Kz), dim=-1)
+    special_K = torch.einsum('...i,...jk->...jk', c_1 / phi2, special_K)
+
+    generator = torch.cat((generator_Rx, generator_Ry, generator_Rz), dim=-1)
+    generator = torch.einsum('...i,jk->...jk', sinc_t, generator)
+
+    M = 2 * c_1 / phi2**2 * K_2 + sinc_t / phi2 * (K_2 - K_) + cos_t / phi2 * K_
+    M_rotvec = torch.einsum('...i,...j->...ij', M, q3d)
+    J_rot = M_rotvec + special_K + generator
+    J[..., :3, :3, :] = J_rot.view(*batch_size, 3, 3, 3)
     return J
 
 
@@ -72,9 +125,7 @@ def T_wrt_q4d(q4d: torch.Tensor) -> torch.Tensor:
     J[..., 2, 1, 3] = (-4.0*qw*wx_plus_yz + 2.0*qx*norm)
     J[..., 2, 2, 3] = (4.0*qw*(qx**2 + qy**2))
 
-    J = J / (norm**2)[..., None, None, None]
-    J = torch.flatten(J, start_dim=-3, end_dim=-2)
-    return J
+    return J / (norm**2)[..., None, None, None]
 
 
 def q4d_wrt_T(T: torch.Tensor) -> torch.Tensor:
@@ -127,14 +178,14 @@ def q4d_wrt_T(T: torch.Tensor) -> torch.Tensor:
         J[tlz, 1 + k, i, k] = 0.5 * i_r
 
     J = J.view(*shape, 4, 4, 4)
-    return torch.flatten(J[..., [1, 2, 3, 0], :, :], start_dim=-2)
+    return J[..., [1, 2, 3, 0], :, :]
 
 
 def t_wrt_T(T: torch.Tensor) -> torch.Tensor:
-    J = torch.zeros((*T.shape[:-2], 3, 16), dtype=T.dtype, device=T.device)
-    J[..., 0, 3] = 1
-    J[..., 1, 7] = 1
-    J[..., 2, 11] = 1
+    J = torch.zeros((*T.shape[:-2], 3, 4, 4), dtype=T.dtype, device=T.device)
+    J[..., 0, 0, 3] = 1
+    J[..., 1, 1, 3] = 1
+    J[..., 2, 2, 3] = 1
     return J
 
 
@@ -185,4 +236,43 @@ def T_inv_wrt_T(T: torch.Tensor) -> torch.Tensor:
     J[..., 1, 3, 2, 3] = -r21
     J[..., 2, 3, 2, 3] = -r22
 
-    return J.view(*T.shape[:-2], 16, 16)
+    return J
+
+
+def cov_error_propagation(x: Union[Normal, MultivariateNormal], Jx: torch.Tensor, square_form: bool = False
+                          ) -> torch.Tensor:
+    """Covariance error propagation.
+
+    For a coveriance matrix C which is transformed by some transform T(x) with jacobian J(x) = dT/dx, the
+    transformed covariance matrix C' is:
+
+    C' = J * C * J^T
+
+    For numerical stability the square-root form of this equation can be used:
+
+    C* = J * sqrt(C)
+    C' = C* * (C*)^T
+
+    Args:
+        x: initial distribution. when x is a Normal distribution the covariance matrix will be created as a
+           diagonal matrix filled with x's variances.
+        Jx: jacobian dT/dx.
+        square_form: use the square-root form or the standard form to calculate C'.
+    """
+    if isinstance(x, Normal):
+        x_cov = diag_last(x.variance)
+    else:
+        x_cov = x.covariance_matrix
+
+    if square_form:
+        cov_ = torch.matmul(Jx, torch.sqrt(x_cov))
+        return torch.matmul(cov_, cov_.transpose(-1, -2))
+    return torch.einsum('...ij,...jk,...kl->...il', Jx, x_cov, Jx.transpose(-1, -2))
+
+
+def __batch_skew(vecs, dtype=torch.float64):
+    batch_size = vecs.shape[:-1]
+    device = vecs.device
+    vx, vy, vz = torch.split(vecs, 1, dim=-1)
+    zeros = torch.zeros((*batch_size, 1), dtype=dtype, device=device)
+    return torch.cat([zeros, -vz, vy, vz, zeros, -vx, -vy, vx, zeros], dim=-1).view((*batch_size, 3, 3))
