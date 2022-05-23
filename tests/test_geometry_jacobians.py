@@ -87,6 +87,20 @@ def test_q4d_wrt_T(shape, delta: float = 1e-6):
             assert torch.allclose(J_hat[..., i, j], J, atol=1e-4)
 
 
+@pytest.mark.parametrize("shape", ((4, 4), (8, 4, 4), (1, 4, 4), (3, 4, 4), (5, 8, 4, 4)))
+def test_q3d_wrt_T(shape, delta: float = 1e-6):
+    x = get_random_transform(shape[:-2])
+    q = torram.geometry.rotation_matrix_to_angle_axis(x[..., :3, :3].contiguous())
+    J_hat = torram_jacobians.q3d_wrt_T(x)
+    for i in range(4):
+        for j in range(4):
+            x_ = x.clone()
+            x_[..., i, j] += delta
+            q_ = torram.geometry.rotation_matrix_to_angle_axis(x_[..., :3, :3].contiguous())
+            J = (q_ - q) / delta
+            assert torch.allclose(J_hat[..., i, j], J, atol=1e-4)
+
+
 @pytest.mark.parametrize("shape", ((4, 4), (8, 4, 4), (1, 4, 4), (5, 8, 4, 4)))
 def test_T_inv_wrt_T(shape, delta: float = 1e-6):
     x = get_random_transform(shape[:-2])

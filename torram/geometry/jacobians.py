@@ -1,3 +1,4 @@
+import math
 import torch
 
 from torch.distributions import Normal, MultivariateNormal
@@ -8,6 +9,7 @@ __all__ = ['T_wrt_t',
            't_wrt_T',
            'T_wrt_q3d',
            'T_wrt_q4d',
+           'q3d_wrt_T',
            'q4d_wrt_T',
            'T_inv_wrt_T',
            'cov_error_propagation']
@@ -19,6 +21,102 @@ def T_wrt_t(t: torch.Tensor) -> torch.Tensor:
     J[..., 1, 3, 1] = 1
     J[..., 2, 3, 2] = 1
     return J
+
+
+def q3d_wrt_T(T: torch.Tensor, epsilon: float = 1e-4) -> torch.Tensor:
+    R_flat = torch.flatten(T[..., :3, :3], start_dim=-2)
+    chunks = torch.chunk(R_flat, chunks=9, dim=-1)
+    r00, r01, r02, r10, r11, r12, r20, r21, r22 = (c[..., 0] for c in chunks)
+    batch_size = T.shape[:-2]
+
+    # Singularity => No rotation when rotation matrix is an identity matrix. Then the angle axis reprensentation
+    # should be zeros, as they have been initialized.
+    J_sx = torch.zeros((*batch_size, 3, 4, 4), dtype=T.dtype, device=T.device)
+    J_sx[..., 0, 0, 0] = 1
+    J_sx[..., 1, 0, 0] = (r01 - r10) / (2 * (r00 + 1))
+    J_sx[..., 2, 0, 0] = (r20 - r02) / (2 * (r00 + 1))
+    J_sx[..., 1, 0, 1] = -1
+    J_sx[..., 2, 0, 2] = 1
+    J_sx[..., 1, 1, 0] = 1
+    J_sx[..., 2, 2, 0] = -1
+    factor_x = (math.sqrt(2) * math.pi) / (4 * torch.sqrt(r00 + 1))
+    J_sx = J_sx * factor_x.view(*batch_size, 1, 1, 1)
+
+    J_sy = torch.zeros((*batch_size, 3, 4, 4), dtype=T.dtype, device=T.device)
+    J_sy[..., 0, 0, 1] = -1
+    J_sy[..., 0, 1, 0] = 1
+    J_sy[..., 0, 1, 1] = (r01 - r10) / (2 * (r11 + 1))
+    J_sy[..., 1, 1, 1] = 1
+    J_sy[..., 2, 1, 1] = (r12 - r21) / (2 * (r11 + 1))
+    J_sy[..., 2, 1, 2] = -1
+    J_sy[..., 2, 2, 1] = 1
+    factor_y = (math.sqrt(2) * math.pi) / (4 * torch.sqrt(r11 + 1))
+    J_sy = J_sy * factor_y.view(*batch_size, 1, 1, 1)
+
+    J_sz = torch.zeros((*batch_size, 3, 4, 4), dtype=T.dtype, device=T.device)
+    J_sz[..., 0, 0, 2] = 1
+    J_sz[..., 1, 1, 2] = -1
+    J_sz[..., 0, 0, 2] = -1
+    J_sz[..., 1, 2, 1] = 1
+    J_sz[..., 1, 2, 1] = 1
+    J_sz[..., 0, 2, 2] = (r20 - r02) / (2 * (r22 + 1))
+    J_sz[..., 1, 2, 2] = (r12 - r21) / (2 * (r22 + 1))
+    J_sz[..., 2, 2, 2] = 1
+    factor_z = (math.sqrt(2) * math.pi) / (4 * torch.sqrt(r22 + 1))
+    J_sz = J_sz * factor_z.view(*batch_size, 1, 1, 1)
+
+    # "Normal" transformation jacobian.
+    a = r00 + r11 + r22 - 1
+    b = torch.sqrt((r01 - r10)**2 + (r02 - r20)**2 + (r12 - r21)**2)
+    c = torch.acos(a / 2)
+    norm1 = torch.sqrt(4 - a**2) * b
+    norm2 = b ** 3
+    J_n = torch.zeros((*batch_size, 3, 4, 4), dtype=T.dtype, device=T.device)
+    J_n[..., 0, 0, 0] = (r12 - r21) / norm1
+    J_n[..., 1, 0, 0] = (r20 - r02) / norm1
+    J_n[..., 2, 0, 0] = (r01 - r10) / norm1
+    J_n[..., 0, 0, 1] = (r01 - r10) * (r12 - r21) * c / norm2
+    J_n[..., 1, 0, 1] = -(r01 - r10) * (r02 - r20) * c / norm2
+    J_n[..., 2, 0, 1] = -((r20 - r02)**2 + (r12 - r21)**2) * c / norm2
+    J_n[..., 0, 0, 2] = (r02 - r20) * (r12 - r21) * c / norm2
+    J_n[..., 1, 0, 2] = ((r01 - r10)**2 + (r12 - r21)**2) * c / norm2
+    J_n[..., 2, 0, 2] = (r01 - r10) * (r02 - r20) * c / norm2
+    J_n[..., 0, 1, 0] = -(r01 - r10) * (r12 - r21) * c / norm2
+    J_n[..., 1, 1, 0] = (r01 - r10) * (r02 - r20) * c / norm2
+    J_n[..., 2, 1, 0] = ((r02 - r20)**2 + (r12 - r21)**2) * c / norm2
+    J_n[..., 0, 1, 1] = (r12 - r21) / norm1
+    J_n[..., 1, 1, 1] = (r20 - r02) / norm1
+    J_n[..., 2, 1, 1] = (r01 - r10) / norm1
+    J_n[..., 0, 1, 2] = - ((r01 - r10)**2 + (r20 - r02)**2) * c / norm2
+    J_n[..., 1, 1, 2] = -(r02 - r20) * (r12 - r21) * c / norm2
+    J_n[..., 2, 1, 2] = (r01 - r10) * (r12 - r21) * c / norm2
+    J_n[..., 0, 2, 0] = -(r02 - r20) * (r12 - r21) * c / norm2
+    J_n[..., 1, 2, 0] = - ((r01 - r10)**2 + (r12 - r21)**2) * c / norm2
+    J_n[..., 2, 2, 0] = -(r01 - r10) * (r02 - r20) * c / norm2
+    J_n[..., 0, 2, 1] = ((r01 - r10)**2 + (r02 - r20)**2) * c / norm2
+    J_n[..., 1, 2, 1] = (r02 - r20) * (r12 - r21) * c / norm2
+    J_n[..., 2, 2, 1] = -(r01 - r10) * (r12 - r21) * c / norm2
+    J_n[..., 0, 2, 2] = (r12 - r21) / norm1
+    J_n[..., 1, 2, 2] = (r20 - r02) / norm1
+    J_n[..., 2, 2, 2] = (r01 - r10) / norm1
+
+    # Conditional output.
+    is_singular = ((r21 - r12).abs() < epsilon) & ((r02 - r20).abs() < epsilon) & ((r10 - r01).abs() < epsilon)
+    is_singular = is_singular.view(*batch_size, 1, 1, 1)
+    is_no_rotation = ((r21 + r12).abs() < epsilon) & ((r02 + r20).abs() < epsilon) & ((r10 + r01).abs() < epsilon) \
+                     & ((r00 + r11 + r22 - 3).abs() < epsilon)
+    is_no_rotation = is_no_rotation.view(*batch_size, 1, 1, 1)
+    is_sing_rot = is_singular & ~is_no_rotation
+
+    xx = (r00.view(*batch_size, 1, 1, 1) + 1) / 2
+    yy = (r11.view(*batch_size, 1, 1, 1) + 1) / 2
+    zz = (r22.view(*batch_size, 1, 1, 1) + 1) / 2
+
+    J = torch.zeros((*batch_size, 3, 4, 4), dtype=T.dtype, device=T.device)
+    J = torch.where(is_sing_rot & (xx > yy) & (xx > zz) & (xx >= epsilon), J_sx, J)
+    J = torch.where(is_sing_rot & (yy > xx) & (yy > zz) & (yy >= epsilon), J_sy, J)
+    J = torch.where(is_sing_rot & (zz > xx) & (zz > yy) & (zz >= epsilon), J_sz, J)
+    return torch.where(~is_singular, J_n, J)
 
 
 def T_wrt_q3d(q3d: torch.Tensor) -> torch.Tensor:
