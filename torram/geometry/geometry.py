@@ -132,9 +132,9 @@ def rotation_matrix_to_angle_axis(rotation_matrix: torch.Tensor, epsilon: float 
     # Singularity handling.
     is_singular = (ymz.abs() < epsilon) & (xmz.abs() < epsilon) & (xmy.abs() < epsilon)
     is_no_rotation = (yz.abs() < epsilon) & (xz.abs() < epsilon) & (xy.abs() < epsilon) & ((trace - 3).abs() < epsilon)
-    xx = (rotation_matrix[..., 0, 0] + 1).unsqueeze(-1) / 2
-    yy = (rotation_matrix[..., 1, 1] + 1).unsqueeze(-1) / 2
-    zz = (rotation_matrix[..., 2, 2] + 1).unsqueeze(-1) / 2
+    xx = (rotation_matrix[..., 0, 0] + 1 + epsilon).unsqueeze(-1) / 2
+    yy = (rotation_matrix[..., 1, 1] + 1 + epsilon).unsqueeze(-1) / 2
+    zz = (rotation_matrix[..., 2, 2] + 1 + epsilon).unsqueeze(-1) / 2
     xy4 = xy / 4
     xz4 = xz / 4
     yz4 = yz / 4
@@ -166,6 +166,7 @@ def rotation_matrix_to_angle_axis(rotation_matrix: torch.Tensor, epsilon: float 
 
     # No singularity case. Normalize the off-diagonal entries to form the vector, with the angle
     # determined from the rotation matrice's trace.
+    trace = torch.clamp_min(trace, -1 + epsilon)
     s = torch.sqrt(ymz**2 + xmz**2 + xmy**2)
     angle = torch.acos((trace - 1) / 2)
     return torch.where(~is_singular, torch.cat([ymz, xmz, xmy], dim=-1) * angle / s, output)
