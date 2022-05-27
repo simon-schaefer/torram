@@ -19,6 +19,7 @@ __all__ = ['angle_axis_to_quaternion',
            'rotation_6d_to_rotation_matrix',
            'rotation_6d_to_axis_angle',
            'rotation_6d_to_quaternion',
+           'multiply_angle_axis',
            'multiply_quaternion',
            'inverse_quaternion',
            'inverse_transformation',
@@ -169,7 +170,7 @@ def rotation_matrix_to_angle_axis(rotation_matrix: torch.Tensor, epsilon: float 
     trace = torch.clamp_min(trace, -1 + epsilon)
     s = torch.sqrt(ymz**2 + xmz**2 + xmy**2)
     angle = torch.acos((trace - 1) / 2)
-    return torch.where(~is_singular, torch.cat([ymz, xmz, xmy], dim=-1) * angle / s, output)
+    return torch.where(~is_singular, torch.cat([ymz, xmz, xmy], dim=-1) * angle / s, output)  # noqa
 
 
 def rotation_matrix_to_quaternion(rotation_matrix: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
@@ -235,8 +236,8 @@ def rotation_matrix_to_quaternion(rotation_matrix: torch.Tensor, eps: float = 1e
         qz = 0.25 * sq
         return torch.cat((qx, qy, qz, qw), dim=-1)
 
-    where_2 = torch.where(m11 > m22, cond_2(), cond_3())
-    where_1 = torch.where((m00 > m11) & (m00 > m22), cond_1(), where_2)
+    where_2 = torch.where(m11 > m22, cond_2(), cond_3())  # noqa
+    where_1 = torch.where((m00 > m11) & (m00 > m22), cond_1(), where_2)  # noqa
     quaternion_flat = torch.where(trace > 0.0, trace_positive_cond(), where_1)
     return quaternion_flat.view(*shape, 4)
 
@@ -358,6 +359,38 @@ def inverse_quaternion(q: torch.Tensor) -> torch.Tensor:
         raise ValueError(f"Invalid shape of quaternion, expected (..., 4), got {q.shape}")
     scaling = torch.tensor([-1, -1, -1, 1], device=q.device, dtype=q.dtype)
     return q * scaling
+
+
+def multiply_angle_axis(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    """Compose two angle axis.
+
+    Implementation based on mathematical derivation from
+    https://math.stackexchange.com/questions/382760/composition-of-two-axis-angle-rotations
+
+    Args:
+        a: first input angle axis (..., 3).
+        b: second input angle axis (..., 3).
+    Returns:
+        Composed rotation in angle axis, a tensor of angle axes (..., 3).
+    """
+    if a.shape != b.shape:
+        raise ValueError(f"Got non-matching inputs a and b, got {a.shape} and {b.shape}")
+    if a.shape[-1] != 3:
+        raise ValueError(f"Got invalid axis-angle tensor, expected (..., 3), got {a.shape}")
+
+    alpha_2 = torch.linalg.norm(a, dim=-1, keepdim=True) / 2
+    beta_2 = torch.linalg.norm(b, dim=-1, keepdim=True) / 2
+    m = a / (alpha_2 * 2)
+    n = b / (beta_2 * 2)
+
+    sa_sb = torch.sin(alpha_2)*torch.sin(beta_2)
+    sa_cb = torch.sin(alpha_2)*torch.cos(beta_2)
+    ca_cb = torch.cos(alpha_2)*torch.cos(beta_2)
+    ca_sb = torch.cos(alpha_2)*torch.sin(beta_2)
+
+    gamma_2 = torch.acos(ca_cb - sa_sb*torch.sum(m*n, dim=-1, keepdim=True))
+    o = (sa_cb*m + ca_sb*n + sa_sb*torch.cross(m, n, dim=-1)) / torch.sin(gamma_2)
+    return o / o.norm(dim=-1, keepdim=True) * 2 * gamma_2
 
 
 def multiply_quaternion(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:

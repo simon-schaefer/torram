@@ -3,6 +3,8 @@ import pytest
 import torch
 import torram
 
+from typing import Tuple
+
 
 @pytest.mark.parametrize("shape", [(4, 2), (4, 1, 3, 1), (8,)])
 def test_inverse_transformation(shape):
@@ -26,6 +28,18 @@ def test_inverse_quaternion(shape):
     q_inv = torram.geometry.inverse_quaternion(q)
     q_unit = torram.geometry.angle_axis_to_quaternion(torch.zeros(shape))
     assert torch.allclose(torram.geometry.multiply_quaternion(q, q_inv), q_unit, atol=1e-6)
+
+
+@pytest.mark.parametrize("shape", [(4, 3), (4, 1, 5, 3)])
+def test_multiply_angle_axis(shape: Tuple[int, ...]):
+    a = torch.rand(shape)
+    b = torch.rand(shape)
+    c_hat = torram.geometry.multiply_angle_axis(a, b)
+
+    Ra = torram.geometry.angle_axis_to_rotation_matrix(a)
+    Rb = torram.geometry.angle_axis_to_rotation_matrix(b)
+    c = kornia.geometry.rotation_matrix_to_angle_axis(Ra @ Rb)
+    assert torch.allclose(c_hat, c)
 
 
 @pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
@@ -67,17 +81,22 @@ def test_rotation_matrix_singularity_eye():
 def test_rotation_matrix_singularity_180_x():
     rotation_matrix = torch.tensor([[1, 0, 0],
                                     [0, -1, 0],
-                                    [0, 0, -1]], dtype=torch.float32)
-    q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+                                    [0, 0, -1]], dtype=torch.float64)
+    q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix, epsilon=1e-8)
     q3d_kornia = kornia.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
     assert torch.allclose(q3d_hat, q3d_kornia)
+
+
+if __name__ == '__main__':
+    test_rotation_matrix_singularity_180_x()
+
 
 
 def test_rotation_matrix_singularity_180_y():
     rotation_matrix = torch.tensor([[-1, 0, 0],
                                     [0, 1, 0],
-                                    [0, 0, -1]], dtype=torch.float32)
-    q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+                                    [0, 0, -1]], dtype=torch.float64)
+    q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix, epsilon=1e-8)
     q3d_kornia = kornia.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
     assert torch.allclose(q3d_hat, q3d_kornia)
 
@@ -85,8 +104,8 @@ def test_rotation_matrix_singularity_180_y():
 def test_rotation_matrix_singularity_180_z():
     rotation_matrix = torch.tensor([[-1, 0, 0],
                                     [0, -1, 0],
-                                    [0, 0, 1]], dtype=torch.float32)
-    q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
+                                    [0, 0, 1]], dtype=torch.float64)
+    q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix, epsilon=1e-8)
     q3d_kornia = kornia.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
     assert torch.allclose(q3d_hat, q3d_kornia)
 
