@@ -1,3 +1,4 @@
+import logging
 import os
 import torch
 import torch.utils.tensorboard
@@ -21,6 +22,14 @@ class TensorboardY(torch.utils.tensorboard.SummaryWriter):
             self.add_scalar(f"{tag}/{key}", value, global_step=global_step)
 
     def add_scalar_dicts(self, tag: str, scalar_dict: Dict[str, Any], global_step: int, **kwargs):
+        key_lengths = [len(key.split("/")) for key in scalar_dict.keys()]
+        if len(key_lengths) == 0:  # empty scalar dict, just return
+            return
+        if not all(l == key_lengths[0] for l in key_lengths) or key_lengths[0] == 1:
+            logging.debug("Not-Matching or unit length keys, fallback to add_scalar_dict")
+            self.add_scalar_dict(tag, scalar_dict, global_step=global_step)
+            return
+
         leveled_dict = dict()
         for key, value in scalar_dict.items():
             key_level = tag + "/" + "/".join(key.split("/")[:-1])
