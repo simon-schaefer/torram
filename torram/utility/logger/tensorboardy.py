@@ -20,7 +20,18 @@ class TensorboardY(torch.utils.tensorboard.SummaryWriter):
         for key, value in scalar_dict.items():
             self.add_scalar(f"{tag}/{key}", value, global_step=global_step)
 
-    def log_normal(self, tag: str, dist_y_hat: torch.distributions.Normal, y: torch.Tensor, global_step: int):
+    def add_scalar_dicts(self, tag: str, scalar_dict: Dict[str, Any], global_step: int, **kwargs):
+        leveled_dict = dict()
+        for key, value in scalar_dict.items():
+            key_level = tag + "/" + "/".join(key.split("/")[:-1])
+            if key_level not in leveled_dict:
+                leveled_dict[key_level] = dict()
+            key_value = "/".join(key.split("/")[-1:])
+            leveled_dict[key_level][key_value] = value
+        for key_level, level_dict in leveled_dict.items():
+            self.add_scalars(key_level, level_dict, global_step=global_step)
+
+    def add_normal(self, tag: str, dist_y_hat: torch.distributions.Normal, y: torch.Tensor, global_step: int):
         error = torch.abs(dist_y_hat.mean - y)
         self.add_histogram(f"{tag}/xi", error ** 2 / dist_y_hat.variance, global_step=global_step)
         self.add_histogram(f"{tag}/error", error, global_step=global_step)
