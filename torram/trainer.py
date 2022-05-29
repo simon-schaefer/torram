@@ -142,8 +142,8 @@ class Trainer:  # pragma: no cover
                     logs_dt = timer.get_and_reset_logs()
                     logs_dt = {key: sum(values) / len(values) for key, values in logs_dt.items()}  # normalize
                     loss_cache = {key: value / value_count for key, value in loss_cache.items()}  # normalize
-                    self.logger.add_scalar_dict(f"timings", logs_dt, global_step=global_step)
-                    self.logger.add_scalar_dict("loss/train", loss_cache, global_step=global_step)
+                    self.logger.add_scalar_dicts(f"timings", logs_dt, global_step=global_step)
+                    self.logger.add_scalar_dicts("loss/train", loss_cache, global_step=global_step)
                     self.logger.add_scalar("loss/train", loss_running / value_count, global_step=global_step)
 
                     loss_running = 0
@@ -177,7 +177,7 @@ class Trainer:  # pragma: no cover
     def validation_step(self, model_output, batch, global_step: int):
         self.model.eval()
         metrics_dict = self.evaluator(batch, model_output, reduce_mean=True)
-        self.logger.add_scalar_dict("metrics/train", metrics_dict, global_step=global_step)
+        self.logger.add_scalar_dicts("metrics/train", metrics_dict, global_step=global_step)
         if hasattr(self.model, "log_values"):
             self.model.log_values(batch, model_output, self.logger, global_step=global_step)
         self.model.train()
@@ -185,7 +185,7 @@ class Trainer:  # pragma: no cover
     def test_step(self, global_step: int):
         self.model.eval()
         metrics_dict = self.evaluator.wloader(self.forward_batch, self.test_data_loader, until=10)
-        self.logger.add_scalar_dict("metrics/test", metrics_dict, global_step=global_step)
+        self.logger.add_scalar_dicts("metrics/test", metrics_dict, global_step=global_step)
 
         vis_batch = next(self.test_data_loader.__iter__())  # should yield first batch
         vis_batch = torram.utility.moving.move_batch(vis_batch, device=self.device)
@@ -193,7 +193,7 @@ class Trainer:  # pragma: no cover
             model_output = self.forward_batch(vis_batch)
 
         loss_dict = self.model.compute_loss(vis_batch, model_output)
-        self.logger.add_scalar_dict("loss/test", loss_dict, global_step=global_step)
+        self.logger.add_scalar_dicts("loss/test", loss_dict, global_step=global_step)
         self.logger.add_scalar("loss/test", sum(loss_dict.values()), global_step=global_step)
         if hasattr(self.model, "visualize"):
             vis_prefix = f"{self.log_name}/"
