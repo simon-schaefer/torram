@@ -361,7 +361,7 @@ def inverse_quaternion(q: torch.Tensor) -> torch.Tensor:
     return q * scaling
 
 
-def multiply_angle_axis(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+def multiply_angle_axis(a: torch.Tensor, b: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     """Compose two angle axis.
 
     Implementation based on mathematical derivation from
@@ -380,8 +380,8 @@ def multiply_angle_axis(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
 
     alpha_2 = torch.linalg.norm(a, dim=-1, keepdim=True) / 2
     beta_2 = torch.linalg.norm(b, dim=-1, keepdim=True) / 2
-    m = a / (alpha_2 * 2)
-    n = b / (beta_2 * 2)
+    m = a / (alpha_2 * 2 + eps)
+    n = b / (beta_2 * 2 + eps)
 
     sa_sb = torch.sin(alpha_2)*torch.sin(beta_2)
     sa_cb = torch.sin(alpha_2)*torch.cos(beta_2)
@@ -389,7 +389,7 @@ def multiply_angle_axis(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     ca_sb = torch.cos(alpha_2)*torch.sin(beta_2)
 
     gamma_2 = torch.acos(ca_cb - sa_sb*torch.sum(m*n, dim=-1, keepdim=True))
-    o = (sa_cb*m + ca_sb*n + sa_sb*torch.cross(m, n, dim=-1)) / torch.sin(gamma_2)
+    o = (sa_cb*m + ca_sb*n + sa_sb*torch.cross(m, n, dim=-1)) / (torch.sin(gamma_2) + eps)
     return o / o.norm(dim=-1, keepdim=True) * 2 * gamma_2
 
 

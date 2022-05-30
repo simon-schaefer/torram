@@ -42,6 +42,17 @@ def test_multiply_angle_axis(shape: Tuple[int, ...]):
     assert torch.allclose(c_hat, c)
 
 
+def test_multiply_angle_axis_zeros():
+    a = torch.zeros((4, 3))
+    b = torch.rand((4, 3))
+    c_hat = torram.geometry.multiply_angle_axis(a, b)
+    assert not torch.any(torch.isnan(c_hat))
+
+
+if __name__ == '__main__':
+    test_multiply_angle_axis_zeros()
+
+
 @pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
 def test_angle_axis_to_rotation_matrix(shape):
     x3d = torch.rand(shape)
