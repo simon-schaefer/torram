@@ -9,6 +9,9 @@ __pycache__/
 htmlcov/
 tests/assets/cache/
 
+# PyPi cache.
+dist/
+
 # Editor.
 .idea/
 .vscode/

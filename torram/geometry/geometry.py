@@ -279,27 +279,14 @@ def rotation_6d_to_quaternion(x: torch.Tensor) -> torch.Tensor:
     return rotation_matrix_to_quaternion(x2)
 
 
-def rotation_6d_to_axis_angle(x: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+def rotation_6d_to_axis_angle(x: torch.Tensor) -> torch.Tensor:
     """Convert 6d rotation representation to axis angle (3D) representation.
-    https://stackoverflow.com/questions/12463487/obtain-rotation-axis-from-rotation-matrix-and-translation-vector-in-opencv
 
     Args:
         x: 6d rotation tensor (..., 6)
     """
-    assert x.shape[-1] == 6
-    r = rotation_6d_to_rotation_matrix(x)
-    trace_m1 = torch.clamp(r[..., 0, 0] + r[..., 1, 1] + r[..., 2, 2] - 1, -1 + eps, 1 - eps)
-
-    angle = torch.arccos(trace_m1 / 2)
-    yz = (r[..., 2, 1] - r[..., 1, 2])**2
-    xz = (r[..., 0, 2] - r[..., 2, 0])**2
-    xy = (r[..., 1, 0] - r[..., 0, 1])**2
-    norm = torch.sqrt(xy + xz + yz) + eps
-
-    ax = (r[..., 2, 1] - r[..., 1, 2]) / norm * angle
-    ay = (r[..., 0, 2] - r[..., 2, 0]) / norm * angle
-    az = (r[..., 1, 0] - r[..., 0, 1]) / norm * angle
-    return torch.stack([ax, ay, az], dim=-1)
+    x4d = rotation_6d_to_quaternion(x)
+    return quaternion_to_angle_axis(x4d)
 
 
 def angle_axis_to_rotation_matrix(x: torch.Tensor) -> torch.Tensor:
