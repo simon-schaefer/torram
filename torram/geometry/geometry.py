@@ -106,7 +106,7 @@ def angle_axis_to_quaternion(angle_axis: torch.Tensor) -> torch.Tensor:
     return quaternion_flat.view(*shape, 4)
 
 
-def rotation_matrix_to_angle_axis(rotation_matrix: torch.Tensor, epsilon: float = 1e-4) -> torch.Tensor:
+def rotation_matrix_to_angle_axis(rotation_matrix: torch.Tensor, epsilon: float = 1e-6) -> torch.Tensor:
     """Convert 3x3 rotation matrix to axis angle representation.
     Math inspired by https://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToAngle/index.htm
 
@@ -167,7 +167,7 @@ def rotation_matrix_to_angle_axis(rotation_matrix: torch.Tensor, epsilon: float 
 
     # No singularity case. Normalize the off-diagonal entries to form the vector, with the angle
     # determined from the rotation matrice's trace.
-    trace = torch.clamp_min(trace, -1 + epsilon)
+    trace = torch.clamp(trace, -1 + epsilon, 1 - epsilon)
     s = torch.sqrt(ymz**2 + xmz**2 + xmy**2)
     angle = torch.acos((trace - 1) / 2)
     return torch.where(~is_singular, torch.cat([ymz, xmz, xmy], dim=-1) * angle / s, output)  # noqa

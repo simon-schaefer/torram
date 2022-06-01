@@ -66,10 +66,10 @@ def q3d_wrt_T(T: torch.Tensor, epsilon: float = 1e-4) -> torch.Tensor:
     J_sz = J_sz * factor_z.view(*batch_size, 1, 1, 1)
 
     # "Normal" transformation jacobian.
-    a = torch.clamp(r00 + r11 + r22 - 1, -1 + epsilon, 1 - epsilon)
-    b = torch.sqrt((r01 - r10)**2 + (r02 - r20)**2 + (r12 - r21)**2)
+    a = torch.clamp(r00 + r11 + r22 - 1, -2 + epsilon, 2 - epsilon)
+    b = torch.sqrt((r01 - r10)**2 + (r02 - r20)**2 + (r12 - r21)**2) + epsilon
     c = torch.acos(a / 2)
-    norm1 = torch.sqrt(4 - a**2) * b + epsilon
+    norm1 = torch.sqrt(4 - a**2) * b
     norm2 = b ** 3 + epsilon
     J_n = torch.zeros((*batch_size, 3, 4, 4), dtype=T.dtype, device=T.device)
     J_n[..., 0, 0, 0] = (r12 - r21) / norm1

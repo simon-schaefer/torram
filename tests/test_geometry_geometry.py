@@ -34,7 +34,7 @@ def test_inverse_quaternion(shape):
 def test_multiply_angle_axis(shape: Tuple[int, ...]):
     a = torch.rand(shape)
     b = torch.rand(shape)
-    c_hat = torram.geometry.multiply_angle_axis(a, b)
+    c_hat = torram.geometry.multiply_angle_axis(a, b, eps=0)
 
     Ra = torram.geometry.angle_axis_to_rotation_matrix(a)
     Rb = torram.geometry.angle_axis_to_rotation_matrix(b)
@@ -47,10 +47,6 @@ def test_multiply_angle_axis_zeros():
     b = torch.rand((4, 3))
     c_hat = torram.geometry.multiply_angle_axis(a, b)
     assert not torch.any(torch.isnan(c_hat))
-
-
-if __name__ == '__main__':
-    test_multiply_angle_axis_zeros()
 
 
 @pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
@@ -71,7 +67,7 @@ def test_rotation_6d_and_angle_axis(shape):
 
 
 @pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
-def test_rotation_matrix_against_kornia(shape):
+def test_rotation_matrix_to_angle_axis_against_kornia(shape):
     q3d = torch.rand(shape)
     rotation_matrix = torram.geometry.angle_axis_to_rotation_matrix(q3d)
 
@@ -96,11 +92,6 @@ def test_rotation_matrix_singularity_180_x():
     q3d_hat = torram.geometry.rotation_matrix_to_angle_axis(rotation_matrix, epsilon=1e-8)
     q3d_kornia = kornia.geometry.rotation_matrix_to_angle_axis(rotation_matrix)
     assert torch.allclose(q3d_hat, q3d_kornia)
-
-
-if __name__ == '__main__':
-    test_rotation_matrix_singularity_180_x()
-
 
 
 def test_rotation_matrix_singularity_180_y():
