@@ -74,6 +74,12 @@ def test_T_wrt_q3d(shape: Tuple[int, ...], delta: float = 1e-6):
         assert torch.allclose(J_hat[..., i], J, atol=1e-5)
 
 
+def test_T_wrt_q3d_zeros():
+    x = torch.zeros((3, ), dtype=torch.float64)
+    J_hat = torram_jacobians.T_wrt_q3d(x)
+    assert not torch.any(torch.isnan(J_hat))
+
+
 @pytest.mark.parametrize("shape", ((4, ), (8, 4), (1, 4), (5, 8, 4)))
 def test_T_wrt_q4d(shape: Tuple[int, ...], delta: float = 1e-6):
     x = torch.rand(shape, dtype=torch.float64)
@@ -121,7 +127,7 @@ def test_q3d_wrt_T():
     q = torram.geometry.rotation_matrix_to_angle_axis(x[..., :3, :3].contiguous(), epsilon=0)
     J_hat = torram_jacobians.q3d_wrt_T(x, epsilon=0)
     J_autograd = compute_jacobian(x, q)
-    assert torch.allclose(J_hat, J_autograd)
+    assert torch.allclose(J_hat, J_autograd, atol=1e-4)
 
 
 @pytest.mark.parametrize("shape", ((4, 4), (8, 4, 4), (1, 4, 4), (5, 8, 4, 4)))
