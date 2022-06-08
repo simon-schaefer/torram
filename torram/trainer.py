@@ -32,7 +32,7 @@ class ModelProtocol(Protocol):  # pragma: no cover
 class Trainer:  # pragma: no cover
 
     def __init__(self, model: ModelProtocol, ds_train: Dataset, ds_test: Dataset, device: torch.device,
-                 batch_size_train: int = 24, batch_size_test: int = 8, pin_memory: bool = True, num_workers: int = 4,
+                 batch_size: int = 24, batch_size_test: int = 8, pin_memory: bool = True, num_workers: int = 4,
                  learning_rate: float = 0.0001, log_level: int = 30, log_directory: Optional[str] = None,
                  log_steps_train: int = 100, log_steps_val: int = 500, log_steps_test: int = 5000):
         """Generic neural network trainer based on the instructions implemented in the model.
@@ -51,7 +51,7 @@ class Trainer:  # pragma: no cover
             ds_train: training dataset, subclass of torch.utils.data.Dataset. also used for "validation".
             ds_test: testing dataset, subclass of torch.utils.data.Dataset.
             device: training device.
-            batch_size_train: training batch size, see torch.utils.data.DataLoader.
+            batch_size: training batch size, see torch.utils.data.DataLoader.
             batch_size_test: testing batch size, see torch.utils.data.DataLoader.
             pin_memory: reserve memory on device, see torch.utils.data.DataLoader.
             num_workers: number of workers for training data loading, see torch.utils.data.DataLoader.
@@ -68,7 +68,7 @@ class Trainer:  # pragma: no cover
         self.device = device
 
         self.train_data_loader = torch.utils.data.DataLoader(ds_train,
-                                                             batch_size=batch_size_train,
+                                                             batch_size=batch_size,
                                                              shuffle=True,
                                                              num_workers=num_workers,
                                                              pin_memory=pin_memory,
