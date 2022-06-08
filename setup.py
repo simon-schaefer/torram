@@ -7,7 +7,7 @@ long_description = (code_directory / "README.md").read_text()
 
 setup(
     name='torram',
-    version='0.0.2',
+    version='0.0.3',
     packages=find_packages(),
     install_requires=('torch >= 1.11.0',
                       'torchvision >= 0.12.0',
