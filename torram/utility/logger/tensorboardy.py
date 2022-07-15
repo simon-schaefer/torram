@@ -40,9 +40,15 @@ class TensorboardY(torch.utils.tensorboard.SummaryWriter):
         for key_level, level_dict in leveled_dict.items():
             self.add_scalars(key_level, level_dict, global_step=global_step)
 
-    def add_normal(self, tag: str, dist_y_hat: torch.distributions.Normal, y: torch.Tensor, global_step: int):
-        error = torch.abs(dist_y_hat.mean - y)
-        self.add_histogram(f"{tag}/xi", error ** 2 / dist_y_hat.variance, global_step=global_step)
+    def add_normal(self, tag: str, mean: torch.Tensor, target: torch.Tensor, variances: torch.Tensor, global_step: int):
+        if mean.shape != target.shape:
+            raise ValueError(f"Mean and target are not matching, got {mean.shape} and {target.shape}")
+        if mean.shape != variances.shape:
+            raise ValueError(f"Mean and variances are not matching, got {mean.shape} and {variances.shape}")
+        if torch.any(variances < 0):
+            raise ValueError(f"Invalid variances, got negative values")
+        error = torch.abs(mean - target)
+        self.add_histogram(f"{tag}/xi", error ** 2 / variances, global_step=global_step)
         self.add_histogram(f"{tag}/error", error, global_step=global_step)
-        self.add_histogram(f"{tag}/mean", dist_y_hat.mean, global_step=global_step)
-        self.add_histogram(f"{tag}/stddev", dist_y_hat.stddev, global_step=global_step)
+        self.add_histogram(f"{tag}/mean", mean, global_step=global_step)
+        self.add_histogram(f"{tag}/variance", variances, global_step=global_step)
