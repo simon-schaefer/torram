@@ -337,8 +337,11 @@ def T_inv_wrt_T(T: torch.Tensor) -> torch.Tensor:
     return J
 
 
-def cov_error_propagation(x: Union[Normal, MultivariateNormal], Jx: torch.Tensor, square_form: bool = False
-                          ) -> torch.Tensor:
+def cov_error_propagation(
+        x: Union[Normal, MultivariateNormal, torch.Tensor],
+        Jx: torch.Tensor,
+        square_form: bool = False
+    ) -> torch.Tensor:
     """Covariance error propagation.
 
     For a coveriance matrix C which is transformed by some transform T(x) with jacobian J(x) = dT/dx, the
@@ -359,8 +362,10 @@ def cov_error_propagation(x: Union[Normal, MultivariateNormal], Jx: torch.Tensor
     """
     if isinstance(x, Normal):
         x_cov = diag_last(x.variance)
-    else:
+    elif isinstance(x, MultivariateNormal):
         x_cov = x.covariance_matrix
+    else:
+        x_cov = x
 
     if square_form:
         cov_ = torch.matmul(Jx, torch.sqrt(x_cov))
