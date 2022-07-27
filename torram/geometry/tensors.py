@@ -4,7 +4,8 @@ from typing import Tuple, Union
 
 __all__ = [
     'diag_last',
-    'eye'
+    'eye',
+    'eye_like'
 ]
 
 
@@ -38,3 +39,22 @@ def eye(shape: Union[torch.Size, Tuple[int, ...]], dtype: torch.dtype = None, de
         raise ValueError(f"Got empty shape for eye")
     out_diagonal = torch.ones(shape, dtype=dtype, device=device, requires_grad=requires_grad)
     return diag_last(out_diagonal)
+
+
+def eye_like(x: torch.Tensor, requires_grad = False) -> torch.Tensor:
+    """Make identity matrix like given matrix (shape, device, dtype).
+
+    >>> y = torch.rand((4, 7, 2, 2))
+    >>> I = eye_like(y)
+    >>> I.shape
+    (4, 7, 2, 2)
+
+    Args:
+        x: input matrix to mimic (..., a, a).
+        requires_grad: required gradient for created identity tensor.
+    Returns:
+        identity matrix similar to input matrix in shape, device and dtype.
+    """
+    if len(x.shape) < 2 or x.shape[-1] != x.shape[-2]:
+        raise ValueError("Invalid input matrix, must be at least two-dimensional and square")
+    return eye(x.shape[:-1], dtype=x.dtype, device=x.device, requires_grad=requires_grad)
