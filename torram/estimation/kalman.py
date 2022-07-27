@@ -2,6 +2,7 @@ import torch
 import torram
 
 from torch.distributions import Distribution, Normal, MultivariateNormal
+from typing import Tuple
 
 __all__ = [
     'kalman_update',
@@ -9,7 +10,8 @@ __all__ = [
 ]
 
 
-def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: torch.Tensor) -> MultivariateNormal:
+def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: torch.Tensor
+                  ) -> Tuple[torch.Tensor, torch.Tensor]:
     """Kalman update equations for merging predictions from the process model (x) and measurement (z).
 
     This implementation assumes that the output of the process model (x) and the measurement (z) are describing
@@ -31,6 +33,9 @@ def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: 
         z: measurement at time k (z_k).
         P_hat: process model covariance (P_k|k-1, A*P*A_T + Q in linear case).
         R: measurement covariance (R_k).
+    Returns:
+        mean of fused distribution.
+        covariance of fused distribution,
     """
     n = x_hat.shape[-1]
     if x_hat.shape != z.shape:
@@ -48,7 +53,7 @@ def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: 
     assert torch.all(torch.real(torch.linalg.eig(P_f).eigenvalues) > 0)  # ensure positive definiteness
     P_f = 0.5 * (P_f + P_f.transpose(-1, -2))  # ensure symmetry
     assert torch.allclose(P_f, P_f.transpose(-1, -2))
-    return MultivariateNormal(loc=x_f, covariance_matrix=P_f)
+    return x_f, P_f
 
 
 def kalman_update_with_distributions(x: Distribution, z: Distribution) -> MultivariateNormal:
@@ -65,4 +70,5 @@ def kalman_update_with_distributions(x: Distribution, z: Distribution) -> Multiv
     R = get_covariance_matrix(z)
     assert torch.all(torch.real(torch.linalg.eig(P_hat).eigenvalues) > 0)  # ensure positive definiteness
     assert torch.all(torch.real(torch.linalg.eig(R).eigenvalues) > 0)
-    return kalman_update(x.mean, z.mean, P_hat=P_hat, R=R)
+    x_f, P_f = kalman_update(x.mean, z.mean, P_hat=P_hat, R=R)
+    return MultivariateNormal(loc=x_f, covariance_matrix=P_f)
