@@ -167,6 +167,7 @@ def rotation_matrix_to_angle_axis(rotation_matrix: torch.Tensor, epsilon: float 
 
     # No singularity case. Normalize the off-diagonal entries to form the vector, with the angle
     # determined from the rotation matrice's trace.
+    trace = torch.clamp(trace, -1 + epsilon, 3 - epsilon)
     s = torch.sqrt(ymz**2 + xmz**2 + xmy**2)
     angle = torch.acos((trace - 1) / 2)
     return torch.where(~is_singular, torch.cat([ymz, xmz, xmy], dim=-1) * angle / s, output)  # noqa
