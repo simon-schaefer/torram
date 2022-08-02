@@ -10,6 +10,7 @@ setup(
     version='0.0.4',
     packages=find_packages(),
     install_requires=('torch >= 1.11.0',
+                      'numpy',
                       'torchvision >= 0.12.0',
                       'kornia == 0.6.2',
                       'randomname',
