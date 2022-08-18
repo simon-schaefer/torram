@@ -1,12 +1,12 @@
 import collections
 import logging
-import os
 import randomname
 import torch
 import torram
 import torch.nn.functional
 import torch.utils.data
 
+from pathlib import Path
 from torch.utils.data import Dataset
 from typing import Dict, Optional, Protocol
 
@@ -33,7 +33,7 @@ class Trainer:  # pragma: no cover
 
     def __init__(self, model: ModelProtocol, ds_train: Dataset, ds_test: Dataset, device: torch.device,
                  batch_size: int = 24, batch_size_test: int = 8, pin_memory: bool = True, num_workers: int = 4,
-                 learning_rate: float = 0.0001, log_level: int = 30, log_directory: Optional[str] = None,
+                 learning_rate: float = 0.0001, log_level: int = 30, log_directory: Optional[Path] = None,
                  log_steps_train: int = 100, log_steps_val: int = 500, log_steps_test: int = 5000):
         """Generic neural network trainer based on the instructions implemented in the model.
 
@@ -87,7 +87,7 @@ class Trainer:  # pragma: no cover
         logging.basicConfig(format=log_format, datefmt='%H:%M:%S', level=log_level)
         self.log_steps = {"train": log_steps_train, "val": log_steps_val, "test": log_steps_test}
         if log_directory is not None:
-            log_dir = os.path.join(log_directory, self.log_name)
+            log_dir = log_directory / self.log_name
             self.logger = torram.utility.logger.TensorboardY(log_dir)
         else:
             self.logger = torram.utility.logger.LogLogger()
@@ -201,6 +201,6 @@ class Trainer:  # pragma: no cover
         self.model.train()
 
     def save_model(self, global_step: int):
-        checkpoint_path = os.path.join(self.logger.log_dir, "checkpoints", f"{global_step}.pt")
-        os.makedirs(os.path.dirname(checkpoint_path), exist_ok=True)
+        checkpoint_path = Path(self.logger.log_dir) / "checkpoints" / f"{global_step}.pt"
+        checkpoint_path.parent.mkdir(exist_ok=True)
         torch.save(self.model.state_dict(), checkpoint_path)

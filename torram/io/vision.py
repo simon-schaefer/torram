@@ -1,9 +1,9 @@
 import logging
-import os
 import torch
 
+from pathlib import Path
 from torchvision.io import read_image, read_video, write_jpeg, write_png, write_video
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 __all__ = ['read_image',
            'read_video',
@@ -16,7 +16,7 @@ __all__ = ['read_image',
            'write_video_to_images']
 
 
-def read_images(image_files: List[str], sort: bool = False) -> torch.Tensor:
+def read_images(image_files: List[Union[Path, str]], sort: bool = False) -> torch.Tensor:
     """Read all image files to a single stacked tensor of shape (N, 3, H, W).
 
     Assumptions:
@@ -37,7 +37,7 @@ def read_images(image_files: List[str], sort: bool = False) -> torch.Tensor:
     return images
 
 
-def read_video_BHWC(data_file: str, start_index: int = 0, end_index: int = None) -> torch.Tensor:
+def read_video_BHWC(data_file: Union[Path, str], start_index: int = 0, end_index: int = None) -> torch.Tensor:
     """Read video data from file as (B, C, H, W) tensor.
 
     Returns:
@@ -48,7 +48,7 @@ def read_video_BHWC(data_file: str, start_index: int = 0, end_index: int = None)
     return torch.permute(video_data, (0, 3, 1, 2))  # (B, H, W, C) -> (B, C, H, W)
 
 
-def read_video_metadata(data_file: str) -> Tuple[int, int, int]:
+def read_video_metadata(data_file: Union[Path, str]) -> Tuple[int, int, int]:
     """Read metadata from video without having to load it fully, using ffmpeg.
 
     Returns:
@@ -64,7 +64,7 @@ def read_video_metadata(data_file: str) -> Tuple[int, int, int]:
     return img_height, img_width, num_frames
 
 
-def write_video_to_images(video: torch.Tensor, directory: str) -> List[str]:
+def write_video_to_images(video: torch.Tensor, directory: Path) -> List[Path]:
     """Write all frames contained in the video as jpg images.
 
     Args:
@@ -73,7 +73,7 @@ def write_video_to_images(video: torch.Tensor, directory: str) -> List[str]:
     """
     image_files = []
     for k, img in enumerate(video):
-        img_file_k = os.path.join(directory, f"image_{k:05}.jpg")
+        img_file_k = directory / f"image_{k:05}.jpg"
         write_jpeg(img, img_file_k)
         image_files.append(img_file_k)
     return image_files

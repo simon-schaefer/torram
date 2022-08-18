@@ -1,5 +1,7 @@
 import glob
+import logging
 import os
+
 from typing import Any, Dict, List
 
 __all__ = ['find_all_files',
@@ -13,6 +15,7 @@ def find_all_files(directory: str, suffix: str) -> List[str]:
         directory: query directory
         suffix: file suffix, e.g. ".npy".
     """
+    logging.warning("torram.io.find_all_files will be removed in the next release, use pathlib.Path.glob()")
     query_path = os.path.join(directory, "**", f"*{suffix}")
     return glob.glob(query_path, recursive=True)
 

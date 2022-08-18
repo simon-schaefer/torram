@@ -1,7 +1,7 @@
 import logging
-import os
 import yaml
 
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 
@@ -56,14 +56,14 @@ class Config:
     # I/O Functions ###################################################################################################
     ###################################################################################################################
     @classmethod
-    def from_yaml(cls, f_path: str):
-        assert os.path.isfile(f_path)
+    def from_yaml(cls, f_path: Path):
+        assert f_path.exists()
         with open(f_path) as f:
             config = yaml.full_load(f)
         return cls(config)
 
-    def save_yaml(self, f_path: str):
-        os.makedirs(os.path.dirname(f_path), exist_ok=True)
+    def save_yaml(self, f_path: Path):
+        f_path.parent.mkdir(parents=True, exist_ok=True)
         with open(f_path, 'w+') as f:
             yaml.dump(self.__un_flatten(self._dict), f)
 

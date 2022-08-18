@@ -1,14 +1,15 @@
 import logging
-import os
 import torch
 import torch.utils.tensorboard
+
+from pathlib import Path
 from typing import Any, Dict
 
 
 class TensorboardY(torch.utils.tensorboard.SummaryWriter):
 
-    def __init__(self, log_dir: str, **kwargs):
-        os.makedirs(log_dir)
+    def __init__(self, log_dir: Path, **kwargs):
+        log_dir.mkdir(exist_ok=False, parents=True)
         super(TensorboardY, self).__init__(log_dir=log_dir, **kwargs)
 
     def add_images_w_iter(self, tag: str, img: torch.Tensor, global_step: int, **kwargs):
