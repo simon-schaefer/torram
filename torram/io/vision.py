@@ -1,8 +1,9 @@
 import logging
 import torch
+import torchvision
 
 from pathlib import Path
-from torchvision.io import read_image, read_video, write_jpeg, write_png, write_video
+from torchvision.io import read_video, write_jpeg, write_png, write_video
 from typing import List, Tuple, Union
 
 __all__ = ['read_image',
@@ -37,6 +38,12 @@ def read_images(image_files: List[Union[Path, str]], sort: bool = False) -> torc
     return images
 
 
+def read_image(path: Union[Path, str]) -> torch.Tensor:
+    if isinstance(path, Path):
+        path = path.as_posix()
+    return torchvision.io.read_image(path)
+
+
 def read_video_BHWC(data_file: Union[Path, str], start_index: int = 0, end_index: int = None) -> torch.Tensor:
     """Read video data from file as (B, C, H, W) tensor.
 
@@ -54,6 +61,11 @@ def read_video_metadata(data_file: Union[Path, str]) -> Tuple[int, int, int]:
     Returns:
         img_height, img_width, num_frames
     """
+    import importlib.util
+    ffmpeg_loader = importlib.util.find_spec('ffmpeg')
+    if ffmpeg_loader is None:
+        raise ImportError("read_video_metadata() requires the ffmpeg library, do `pip install ffmpeg`")
+
     import ffmpeg
     video_metadata = ffmpeg.probe(data_file)["streams"]
     if len(video_metadata) != 1:

@@ -9,10 +9,56 @@ from typing import Optional, List, Tuple, Union
 
 
 __all__ = ['draw_bounding_boxes',
+           'draw_bounding_boxes_batch',
            'draw_segmentation_masks',
            'draw_keypoints',
            'draw_reprojection',
            'draw_keypoints_weighted']
+
+
+@torch.no_grad()
+def draw_bounding_boxes_batch(
+    images: torch.Tensor,
+    boxes: torch.Tensor,
+    labels: Optional[List[str]] = None,
+    colors: Optional[Union[List[Union[str, Tuple[int, int, int]]], str, Tuple[int, int, int]]] = None,
+    fill: Optional[bool] = False,
+    width: int = 1,
+    font: Optional[str] = None,
+    font_size: Optional[int] = None,
+):
+    """
+    Draws bounding boxes for a given batch of images.
+
+    Args:
+        images: Tensor of shape (M, C, H, W) and dtype uint8.
+        boxes: Tensor of size (M, N, 4) containing bounding boxes in (xmin, ymin, xmax, ymax) format. Note that
+            the boxes are absolute coordinates with respect to the image. In other words: `0 <= xmin < xmax < W` and
+            `0 <= ymin < ymax < H`.
+        labels: List containing the labels of bounding boxes, shared over batch.
+        colors: List containing the colors of the boxes or single color for all boxes. The color can be represented as
+            PIL strings e.g. "red" or "#FF00FF", or as RGB tuples e.g. ``(240, 10, 157)``.
+            By default, random colors are generated for boxes.
+        fill: If `True` fills the bounding box with specified color.
+        width: Width of bounding box.
+        font: A filename containing a TrueType font. If the file is not found in this filename, the loader may
+            also search in other directories, such as the `fonts/` directory on Windows or `/Library/Fonts/`,
+            `/System/Library/Fonts/` and `~/Library/Fonts/` on macOS.
+        font_size: The requested font size in points.
+
+    Returns:
+        images: Batch of image tensors of dtype uint8 with bounding boxes plotted (M, C, H, W).
+    """
+    if len(images.shape) != 4:
+        raise ValueError(f"Input batched images, got {images.shape}. For a single image use draw_bounding_boxes()")
+    if len(boxes.shape) != 3:
+        raise ValueError(f"Input batched bounding boxes, expected (N, num_boxes, 4), got {boxes.shape}")
+    if len(images) != len(boxes):
+        raise ValueError(f"Non-Matching images and bounding boxes, got {images.shape} and {boxes.shape}")
+    output_images = torch.zeros_like(images)
+    for k, (image, bboxes) in enumerate(zip(images, boxes)):
+        output_images[k] = draw_bounding_boxes(image, bboxes, labels, colors, fill, width, font, font_size)
+    return output_images
 
 
 @torch.no_grad()
