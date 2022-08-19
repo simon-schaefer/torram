@@ -4,12 +4,11 @@ import torch
 import torchvision
 
 import matplotlib.cm as cm
-from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
+from torchvision.utils import draw_segmentation_masks
 from typing import Optional, List, Tuple, Union
 
 
 __all__ = ['draw_bounding_boxes',
-           'draw_bounding_boxes_batch',
            'draw_segmentation_masks',
            'draw_keypoints',
            'draw_reprojection',
@@ -17,7 +16,23 @@ __all__ = ['draw_bounding_boxes',
 
 
 @torch.no_grad()
-def draw_bounding_boxes_batch(
+def __draw_bounding_boxes(
+    image: torch.Tensor,
+    boxes: torch.Tensor,
+    labels: Optional[List[str]] = None,
+    colors: Optional[Union[List[Union[str, Tuple[int, int, int]]], str, Tuple[int, int, int]]] = None,
+    fill: Optional[bool] = False,
+    width: int = 1,
+    font: Optional[str] = None,
+    font_size: Optional[int] = None,
+) -> torch.Tensor:
+    if len(boxes.shape) == 1:
+        boxes = boxes[None]
+    return torchvision.utils.draw_bounding_boxes(image, boxes, labels, colors, fill, width, font, font_size)
+
+
+@torch.no_grad()
+def draw_bounding_boxes(
     images: torch.Tensor,
     boxes: torch.Tensor,
     labels: Optional[List[str]] = None,
@@ -28,13 +43,13 @@ def draw_bounding_boxes_batch(
     font_size: Optional[int] = None,
 ):
     """
-    Draws bounding boxes for a given batch of images.
+    Draws bounding boxes on a given batch of images or a single image.
 
     Args:
-        images: Tensor of shape (M, C, H, W) and dtype uint8.
-        boxes: Tensor of size (M, N, 4) containing bounding boxes in (xmin, ymin, xmax, ymax) format. Note that
-            the boxes are absolute coordinates with respect to the image. In other words: `0 <= xmin < xmax < W` and
-            `0 <= ymin < ymax < H`.
+        images: Tensor of shape ([M,] C, H, W) and dtype uint8.
+        boxes: Tensor of size ([M,] N, 4) or (N, 4) containing bounding boxes in (xmin, ymin, xmax, ymax) format.
+            Note that the boxes are absolute coordinates with respect to the image. In other words:
+            `0 <= xmin < xmax < W` and `0 <= ymin < ymax < H`.
         labels: List containing the labels of bounding boxes, shared over batch.
         colors: List containing the colors of the boxes or single color for all boxes. The color can be represented as
             PIL strings e.g. "red" or "#FF00FF", or as RGB tuples e.g. ``(240, 10, 157)``.
@@ -47,22 +62,27 @@ def draw_bounding_boxes_batch(
         font_size: The requested font size in points.
 
     Returns:
-        images: Batch of image tensors of dtype uint8 with bounding boxes plotted (M, C, H, W).
+        images: Batch of image tensors or single image tensor of dtype uint8 with bounding boxes plotted ([M,] C, H, W).
     """
-    if len(images.shape) != 4:
-        raise ValueError(f"Input batched images, got {images.shape}. For a single image use draw_bounding_boxes()")
-    if len(boxes.shape) != 3:
-        raise ValueError(f"Input batched bounding boxes, expected (N, num_boxes, 4), got {boxes.shape}")
-    if len(images) != len(boxes):
-        raise ValueError(f"Non-Matching images and bounding boxes, got {images.shape} and {boxes.shape}")
-    output_images = torch.zeros_like(images)
-    for k, (image, bboxes) in enumerate(zip(images, boxes)):
-        output_images[k] = draw_bounding_boxes(image, bboxes, labels, colors, fill, width, font, font_size)
-    return output_images
+    if len(images.shape) == 3:
+        if len(boxes.shape) not in [1, 2]:
+            raise ValueError(f"Invalid shape of bounding boxes, expected (num_boxes, 4), got {boxes.shape}")
+        return __draw_bounding_boxes(images, boxes, labels, colors, fill, width, font, font_size)
+    elif len(images.shape) == 4:
+        if len(boxes.shape) not in [2, 3]:
+            raise ValueError(f"Invalid shape of batched bounding boxes, expected (N, num_boxes, 4), got {boxes.shape}")
+        if len(images) != len(boxes):
+            raise ValueError(f"Non-Matching images and bounding boxes, got {images.shape} and {boxes.shape}")
+        output_images = torch.zeros_like(images)
+        for k, (image, bboxes) in enumerate(zip(images, boxes)):
+            output_images[k] = __draw_bounding_boxes(image, bboxes, labels, colors, fill, width, font, font_size)
+        return output_images
+    else:
+        raise ValueError(f"Got neither batch nor single image, got {images.shape}")
 
 
 @torch.no_grad()
-def draw_keypoints(
+def __draw_keypoints(
     image: torch.Tensor,
     keypoints: torch.Tensor,
     connectivity: Optional[List[Tuple[int, int]]] = None,
@@ -70,27 +90,51 @@ def draw_keypoints(
     radius: int = 2,
     width: int = 3,
 ) -> torch.Tensor:
-    """
-    Draws Keypoints on given RGB image.
-    The values of the input image should be uint8 between 0 and 255.
-
-    Args:
-        image (Tensor): Tensor of shape (3, H, W) and dtype uint8.
-        keypoints (Tensor): Tensor of shape (num_instances, K, 2) the K keypoints location for each of the N instances,
-            in the format [x, y].
-        connectivity (List[Tuple[int, int]]]): A List of tuple where,
-            each tuple contains pair of keypoints to be connected.
-        colors (str, Tuple): The color can be represented as
-            PIL strings e.g. "red" or "#FF00FF", or as RGB tuples e.g. ``(240, 10, 157)``.
-        radius (int): Integer denoting radius of keypoint.
-        width (int): Integer denoting width of line connecting keypoints.
-
-    Returns:
-        img (Tensor[C, H, W]): Image Tensor of dtype uint8 with keypoints drawn.
-    """
     if keypoints.ndim == 2:
         keypoints = keypoints[None]
     return torchvision.utils.draw_keypoints(image, keypoints, connectivity, colors, radius=radius, width=width)
+
+
+@torch.no_grad()
+def draw_keypoints(
+    images: torch.Tensor,
+    keypoints: torch.Tensor,
+    connectivity: Optional[List[Tuple[int, int]]] = None,
+    colors: Optional[Union[str, Tuple[int, int, int]]] = "red",
+    radius: int = 2,
+    width: int = 3,
+) -> torch.Tensor:
+    """
+    Draws key-points on a given batch of images or a single image.
+
+    Args:
+        images: Tensor of shape ([M,] 3, H, W) and dtype uint8.
+        keypoints: Tensor of shape ([M,] N, K, 2) the K keypoints location for each of the N instances,
+            in the format [x, y].
+        connectivity: A List of tuple where, each tuple contains pair of keypoints to be connected.
+        colors: The color can be represented as PIL strings e.g. "red" or "#FF00FF",
+            or as RGB tuples e.g. ``(240, 10, 157)``.
+        radius: Integer denoting radius of keypoint.
+        width: Integer denoting width of line connecting keypoints.
+
+    Returns:
+        images: Batch of image tensors or single image tensor of dtype uint8 with keypoints drawn. ([M,] C, H, W).
+    """
+    if len(images.shape) == 3:
+        if len(keypoints.shape) not in [2, 3]:
+            raise ValueError(f"Invalid shape of keypoints, expected (N, K, 2), got {keypoints.shape}")
+        return __draw_keypoints(images, keypoints, connectivity, colors, radius, width)
+    elif len(images.shape) == 4:
+        if len(keypoints.shape) not in [3, 4]:
+            raise ValueError(f"Invalid shape of keypoints, expected (M, N, num_boxes, 4), got {keypoints.shape}")
+        if len(images) != len(keypoints):
+            raise ValueError(f"Non-Matching images and keypoints, got {images.shape} and {keypoints.shape}")
+        output_images = torch.zeros_like(images)
+        for k, (image, keypoints_k) in enumerate(zip(images, keypoints)):
+            output_images[k] = __draw_keypoints(image, keypoints_k, connectivity, colors, radius, width)
+        return output_images
+    else:
+        raise ValueError(f"Got neither batch nor single image, got {images.shape}")
 
 
 @torch.no_grad()
