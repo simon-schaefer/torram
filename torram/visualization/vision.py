@@ -126,7 +126,7 @@ def draw_keypoints(
         return __draw_keypoints(images, keypoints, connectivity, colors, radius, width)
     elif len(images.shape) == 4:
         if len(keypoints.shape) not in [3, 4]:
-            raise ValueError(f"Invalid shape of keypoints, expected (M, N, num_boxes, 4), got {keypoints.shape}")
+            raise ValueError(f"Invalid shape of keypoints, expected (M, N, K, 2), got {keypoints.shape}")
         if len(images) != len(keypoints):
             raise ValueError(f"Non-Matching images and keypoints, got {images.shape} and {keypoints.shape}")
         output_images = torch.zeros_like(images)
