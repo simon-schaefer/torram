@@ -1,8 +1,9 @@
 import numpy as np
 import torch
 
+from functools import partial
 from importlib.util import find_spec
-from typing import Callable
+from typing import Callable, Optional, Tuple
 
 
 class RealsenseRGBDriver:
@@ -18,6 +19,7 @@ class RealsenseRGBDriver:
 
         self.pipeline = rs.pipeline()
         self.config = rs.config()
+        self._is_streaming = False
 
         pipeline_wrapper = rs.pipeline_wrapper(self.pipeline)
         pipeline_profile = self.config.resolve(pipeline_wrapper)
@@ -25,6 +27,68 @@ class RealsenseRGBDriver:
         if not any(s.get_info(rs.camera_info.name) == "RGB Camera" for s in device.sensors):
             raise Exception("Driver requires device with RGB camera")
         self.config.enable_stream(rs.stream.color, width, height, rs.format.bgr8, fps)
+
+    def start_streaming(self):
+        self.pipeline.start(self.config)
+        self._is_streaming = True
+
+    def stop_streaming(self):
+        self.pipeline.stop()
+        self._is_streaming = False
+
+    def wait_for_frame_np(self) -> Optional[Tuple[np.ndarray, np.ndarray, float]]:
+        """Request frame from realsense pipeline and retrieve RGB frame, intrinsics and timestamp.
+        If the frame does not contain RGB data, return None. Returns numpy arrays.
+
+        Returns:
+            color_frame: RGB frame (3, H, W).
+            K: camera intrinsics (3, 3).
+            timestamp: recording timestamp in seconds.
+        """
+        if not self._is_streaming:
+            self.start_streaming()
+
+        frame = self.pipeline.wait_for_frames()
+        color_frame = frame.get_color_frame()
+        if color_frame is None:
+            return None
+        color_frame = np.asanyarray(color_frame.get_data())
+        color_frame = color_frame.transpose((2, 0, 1))  # (H, W, 3) -> (3, H, W)
+
+        intrinsics = frame.get_profile().as_video_stream_profile().get_intrinsics()
+        K = np.array([[intrinsics.fx, 0, intrinsics.ppx], [0, intrinsics.fy, intrinsics.ppy], [0, 0, 1]])
+        timestamp = frame.get_timestamp()
+
+        return color_frame, K, timestamp
+
+    def wait_for_frame(self, device: torch.device, dtype: torch.dtype = torch.float32):
+        """Request frame from realsense pipeline and retrieve RGB frame, intrinsics and timestamp.
+        If the frame does not contain RGB data, return None. Returns torch.tensors.
+
+        Returns:
+            color_frame: RGB frame (3, H, W).
+            K: camera intrinsics (3, 3).
+            timestamp: recording timestamp in seconds.
+        """
+        frame = self.wait_for_frame_np()
+        if frame is None:
+            return None
+        color_frame, K, timestamp = frame
+        color_frame = torch.tensor(color_frame, device=device, dtype=torch.uint8)
+        K = torch.tensor(K, device=device, dtype=dtype)
+        return color_frame, K, timestamp
+
+    def _stream(self, processing_func, get_frame_func):
+        self.start_streaming()
+        try:
+            while True:
+                frame = get_frame_func()
+                if frame is None:
+                    continue
+                color_frame, K, timestamp = frame
+                processing_func(color_frame, K, timestamp)
+        finally:
+            self.stop_streaming()
 
     def stream_np(self, processing_func: Callable[[np.ndarray, np.ndarray, float], None]):
         """Stream RGB images, its intrinsics and recording timestamp to processing functions.
@@ -36,29 +100,13 @@ class RealsenseRGBDriver:
         Args:
             processing_func: function to process every frame.
         """
-        self.pipeline.start(self.config)
-        try:
-            while True:
-                frame = self.pipeline.wait_for_frames()
-                color_frame = frame.get_color_frame()
-                if color_frame is None:
-                    continue
-                color_frame = np.asanyarray(color_frame.get_data())
-                color_frame = color_frame.transpose((2, 0, 1))  # (H, W, 3) -> (3, H, W)
-
-                intrinsics = frame.get_profile().as_video_stream_profile().get_intrinsics()
-                K = np.array([[intrinsics.fx, 0, intrinsics.ppx], [0, intrinsics.fy, intrinsics.ppy], [0, 0, 1]])
-                timestamp = frame.get_timestamp()
-
-                processing_func(color_frame, K, timestamp)
-        finally:
-            self.pipeline.stop()
+        self._stream(processing_func, get_frame_func=self.wait_for_frame_np)
 
     def stream(
         self,
         processing_func: Callable[[torch.Tensor, torch.Tensor, float], None],
         device: torch.device,
-        dtype: torch.dtype,
+        dtype: torch.dtype = torch.float32,
     ):
         """Stream RGB images, its intrinsics and recording timestamp to processing functions.
 
@@ -71,9 +119,5 @@ class RealsenseRGBDriver:
             device: torch device to load frame to.
             dtype: metadata torch dtype.
         """
-        def processing_w_tf(image: np.ndarray, K: np.ndarray, timestamp: float):
-            image = torch.tensor(image, device=device, dtype=torch.uint8)
-            K = torch.tensor(K, device=device, dtype=dtype)
-            processing_func(image, K, timestamp)
-
-        self.stream_np(processing_w_tf)
+        wait_for_frame_w_device = partial(self.wait_for_frame, device=device, dtype=dtype)
+        self._stream(processing_func, get_frame_func=wait_for_frame_w_device)
