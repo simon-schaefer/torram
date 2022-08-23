@@ -1,5 +1,7 @@
 import torch
 import torch.nn.functional
+import torchvision.transforms.functional
+
 from kornia.geometry import depth_to_3d, project_points
 from typing import Optional, Tuple, Union
 
@@ -8,7 +10,9 @@ __all__ = ['depth_to_3d',
            'project_points',
            'is_in_image',
            'box_including_2d',
-           'pad']
+           'pad',
+           'normalize_images',
+           'warp']
 
 
 def is_in_image(pixel: torch.Tensor, width: Union[int, torch.Tensor], height: Union[int, torch.Tensor]) -> torch.Tensor:
@@ -24,6 +28,24 @@ def is_in_image(pixel: torch.Tensor, width: Union[int, torch.Tensor], height: Un
     is_in_image_u = torch.logical_and(pixel[..., 0] >= 0, pixel[..., 0] < width)
     is_in_image_v = torch.logical_and(pixel[..., 1] >= 0, pixel[..., 1] < height)
     return torch.logical_and(is_in_image_u, is_in_image_v)
+
+
+def warp(points: torch.Tensor, warping: torch.Tensor) -> torch.Tensor:
+    """Warp 2D image coordinates with warping tensor.
+
+    Args:
+        points: image coordinates (..., M, 2).
+        warping: warping matrix (..., 3, 3).
+    Returns:
+        warping image coordinates (..., M, 2).
+    """
+    if points.shape[-1] != 2 or points.ndim < 2:
+        raise ValueError(f"Invalid pixel coordinate shape, expected (..., M, 2), got {points.shape}")
+    ones = torch.ones((*points.shape[:-1], 1), dtype=points.dtype, device=points.device)
+    points_h = torch.cat([points, ones], dim=-1).to(warping.dtype)
+    points_warped = torch.einsum('...il,...ml->...mi', warping, points_h)
+    points_warped = points_warped[..., :2] / points_warped[..., -1, None]
+    return points_warped.long()
 
 
 def pad(images: torch.Tensor, K: torch.Tensor, output_shape: Tuple[int, int]) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -118,3 +140,10 @@ def box_including_2d(points_2d: torch.Tensor, x_min: Optional[int] = None, y_min
         v_min = torch.clamp(v_min, y_min, y_max)
         v_max = torch.clamp(v_max, y_min, y_max)
     return torch.stack([u_min, v_min, u_max, v_max], dim=-1)
+
+
+def normalize_images(x: torch.Tensor, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)) -> torch.Tensor:
+    batch_size = x.shape[0]
+    for i in range(batch_size):
+        x[i] = torchvision.transforms.functional.normalize(x[i], mean=mean, std=std)
+    return x
