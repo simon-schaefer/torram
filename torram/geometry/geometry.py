@@ -313,21 +313,28 @@ def unify_angle_axis(x: torch.Tensor) -> torch.Tensor:
     Returns:
         3d rotation vector in axis angle representation with unified direction (see above).
     """
-    angle = x.norm(dim=-1, keepdim=True)
+    def invert_angle(a_vec: torch.Tensor, idx: torch.LongTensor):
+        sign = torch.ones_like(a_vec)
+        sign[idx] = -1
+        residual = torch.zeros_like(a_vec)
+        residual[idx] = 2 * torch.pi
+        return residual + sign * a_vec
+
+    angle = x.norm(dim=-1, keepdim=True).clone()
     direction = x / angle
 
     x_smaller_zero = direction[..., 0] < 0
     direction[x_smaller_zero] *= -1
-    angle[x_smaller_zero] = 2 * torch.pi - angle[x_smaller_zero]
+    angle = invert_angle(angle, x_smaller_zero)
 
     x_equal_zero_and_y_smaller_zero = torch.logical_and(torch.abs(direction[..., 0]) < 1e-6, direction[..., 1] < 0)
     direction[x_equal_zero_and_y_smaller_zero] *= -1
-    angle[x_equal_zero_and_y_smaller_zero] = 2 * torch.pi - angle[x_equal_zero_and_y_smaller_zero]
+    angle = invert_angle(angle, x_equal_zero_and_y_smaller_zero)
 
     xy_equal_zero = torch.logical_and(torch.abs(direction[..., 0]) < 1e-6, torch.abs(direction[..., 1]) < 1e-6)
     xy_equal_zero_and_y_smaller_zero = torch.logical_and(xy_equal_zero, direction[..., 2] < 0)
     direction[xy_equal_zero_and_y_smaller_zero] *= -1
-    angle[xy_equal_zero_and_y_smaller_zero] = 2 * torch.pi - angle[xy_equal_zero_and_y_smaller_zero]
+    angle = invert_angle(angle, xy_equal_zero_and_y_smaller_zero)
 
     return angle * direction
 
