@@ -25,7 +25,8 @@ __all__ = ['angle_axis_to_quaternion',
            'inverse_transformation',
            'pose_to_transformation_matrix',
            'transform_points',
-           'convert_points_to_homogeneous'
+           'convert_points_to_homogeneous',
+           'unify_angle_axis'
            ]
 
 
@@ -297,6 +298,38 @@ def angle_axis_to_rotation_matrix(x: torch.Tensor) -> torch.Tensor:
         x_flat = torch.flatten(x, end_dim=-2)
     R_flat = kornia.geometry.angle_axis_to_rotation_matrix(x_flat)
     return R_flat.view(*shape, 3, 3)
+
+
+def unify_angle_axis(x: torch.Tensor) -> torch.Tensor:
+    """Unify angle axis to avoid its ambiguity problems.
+
+    The angle axis representation is ambiguous as the same rotation can be expressed in two ways, by negating
+    the axis and "inverting" the angle (i.e. alpha_new = 2 * pi - alpha). In this function the axis is
+    fixed to the positive x-direction. If the direction is orthogonal to the x-direction, y > 0 is enforced. If
+    the direction is also orthogonal to y, then z > 0 is enforced.
+
+    Args:
+        x: 3d rotation vector in axis angle representation (..., 3).
+    Returns:
+        3d rotation vector in axis angle representation with unified direction (see above).
+    """
+    angle = x.norm(dim=-1, keepdim=True)
+    direction = x / angle
+
+    x_smaller_zero = direction[..., 0] < 0
+    direction[x_smaller_zero] *= -1
+    angle[x_smaller_zero] = 2 * torch.pi - angle[x_smaller_zero]
+
+    x_equal_zero_and_y_smaller_zero = torch.logical_and(torch.abs(direction[..., 0]) < 1e-6, direction[..., 1] < 0)
+    direction[x_equal_zero_and_y_smaller_zero] *= -1
+    angle[x_equal_zero_and_y_smaller_zero] = 2 * torch.pi - angle[x_equal_zero_and_y_smaller_zero]
+
+    xy_equal_zero = torch.logical_and(torch.abs(direction[..., 0]) < 1e-6, torch.abs(direction[..., 1]) < 1e-6)
+    xy_equal_zero_and_y_smaller_zero = torch.logical_and(xy_equal_zero, direction[..., 2] < 0)
+    direction[xy_equal_zero_and_y_smaller_zero] *= -1
+    angle[xy_equal_zero_and_y_smaller_zero] = 2 * torch.pi - angle[xy_equal_zero_and_y_smaller_zero]
+
+    return angle * direction
 
 
 def rotation_matrix_to_rotation_6d(x: torch.Tensor) -> torch.Tensor:

@@ -151,3 +151,15 @@ def test_rotation_matrix_to_quaternion_2d():
     R = torram.geometry.angle_axis_to_rotation_matrix(x3d)
     q_hat = torram.geometry.rotation_matrix_to_quaternion(R)
     assert q_hat.shape == (4, )
+
+
+@pytest.mark.parametrize("x", [torch.rand((3, 2, 3)) * 2 - 1,
+                               torch.rand((3, 2, 3)),
+                               torch.tensor([[-torch.pi, 0, 0]]),
+                               torch.tensor([[0, -torch.pi, 0]]),
+                               torch.tensor([[0, 0, -torch.pi]])])
+def test_unify_angle_axis(x: torch.Tensor):
+    x_unified = torram.geometry.unify_angle_axis(x)
+    R = torram.geometry.angle_axis_to_rotation_matrix(x)
+    R_unified = torram.geometry.angle_axis_to_rotation_matrix(x_unified)
+    assert torch.allclose(R, R_unified, atol=1e-5)
