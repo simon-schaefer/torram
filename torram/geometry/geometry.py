@@ -1,3 +1,4 @@
+import enum
 import kornia
 import torch
 import kornia.geometry.conversions
@@ -25,8 +26,18 @@ __all__ = ['angle_axis_to_quaternion',
            'inverse_transformation',
            'pose_to_transformation_matrix',
            'transform_points',
-           'convert_points_to_homogeneous'
+           'convert_points_to_homogeneous',
+           'convert_rotation'
            ]
+
+import torram.geometry
+
+
+class Rotations(enum.Enum):
+    AXIS_ANGLE = 0
+    QUATERNION = 1
+    ROTATION6D = 2
+    MATRIX = 3
 
 
 def quaternion_to_rotation_matrix(q: torch.Tensor) -> torch.Tensor:
@@ -403,6 +414,42 @@ def multiply_quaternion(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     return torch.where(q_out[..., 3:4] < 0, -q_out, q_out)
 
 
+def convert_rotation(x: torch.Tensor, target: Rotations) -> torch.Tensor:
+    if target is Rotations.AXIS_ANGLE:
+        if x.shape[-1] == 3:
+            return x
+        elif x.shape[-1] == 4:
+            return quaternion_to_angle_axis(x)
+        elif x.shape[-1] == 6:
+            return rotation_6d_to_axis_angle(x)
+
+    elif target is Rotations.QUATERNION:
+        if x.shape[-1] == 3:
+            return angle_axis_to_quaternion(x)
+        elif x.shape[-1] == 4:
+            return x
+        elif x.shape[-1] == 6:
+            return rotation_6d_to_quaternion(x)
+
+    elif target is Rotations.ROTATION6D:
+        if x.shape[-1] == 3:
+            return angle_axis_to_rotation_6d(x)
+        elif x.shape[-1] == 4:
+            raise NotImplementedError
+        elif x.shape[-1] == 6:
+            return x
+
+    elif target is Rotations.MATRIX:
+        if x.shape[-1] == 3:
+            return angle_axis_to_rotation_matrix(x)
+        elif x.shape[-1] == 4:
+            return quaternion_to_rotation_matrix(x)
+        elif x.shape[-1] == 6:
+            return rotation_6d_to_rotation_matrix(x)
+
+    raise NotImplementedError(f"No conversion from shape {x.shape} to {target} found")
+
+
 def pose_to_transformation_matrix(t: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
     """Convert translation and orientation vector to 4x4 transformation matrix.
 
@@ -418,15 +465,7 @@ def pose_to_transformation_matrix(t: torch.Tensor, q: torch.Tensor) -> torch.Ten
     if len(q.shape) == 1:
         q = q[None]
 
-    T = torch.zeros((*shape, 4, 4), device=t.device, dtype=t.dtype)
-    T[..., 3, 3] = 1.0
+    T = torram.geometry.eye((*shape, 4), device=t.device, dtype=t.dtype)
     T[..., :3, 3] = t
-    if q.shape[-1] == 3:  # axis-angle representation
-        T[..., :3, :3] = angle_axis_to_rotation_matrix(q)
-    elif q.shape[-1] == 4:  # quaternions
-        T[..., :3, :3] = quaternion_to_rotation_matrix(q)
-    elif q.shape[-1] == 6:  # double axis representation
-        T[..., :3, :3] = rotation_6d_to_rotation_matrix(q)
-    else:
-        raise NotImplementedError(f"{q.shape[-1]}-dimensional rotation vector not supported")
+    T[..., :3, :3] = convert_rotation(q, target=Rotations.MATRIX)
     return T
