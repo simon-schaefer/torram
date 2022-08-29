@@ -27,7 +27,8 @@ __all__ = ['angle_axis_to_quaternion',
            'pose_to_transformation_matrix',
            'transform_points',
            'convert_points_to_homogeneous',
-           'convert_rotation'
+           'convert_rotation',
+           'Rotations'
            ]
 
 import torram.geometry
