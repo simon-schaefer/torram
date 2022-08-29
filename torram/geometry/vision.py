@@ -44,7 +44,8 @@ def warp(points: torch.Tensor, warping: torch.Tensor) -> torch.Tensor:
     ones = torch.ones((*points.shape[:-1], 1), dtype=points.dtype, device=points.device)
     points_h = torch.cat([points, ones], dim=-1).to(warping.dtype)
     points_warped = torch.einsum('...il,...ml->...mi', warping, points_h)
-    return points_warped[..., :2] / points_warped[..., -1, None]
+    points_warped = points_warped[..., :2] / points_warped[..., -1, None]
+    return points_warped.to(points.dtype)
 
 
 def pad(images: torch.Tensor, K: torch.Tensor, output_shape: Tuple[int, int]) -> Tuple[torch.Tensor, torch.Tensor]:
