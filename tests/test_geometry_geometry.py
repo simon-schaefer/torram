@@ -151,3 +151,13 @@ def test_rotation_matrix_to_quaternion_2d():
     R = torram.geometry.angle_axis_to_rotation_matrix(x3d)
     q_hat = torram.geometry.rotation_matrix_to_quaternion(R)
     assert q_hat.shape == (4, )
+
+
+@pytest.mark.parametrize("data2d, values", [
+    (torch.ones(1, 2, 2), torch.ones(1,)),
+    (torch.ones(5, 2, 2), torch.ones(5,)),
+    (torch.arange(4).view(1, 2, 2), torch.ones(1, ) * 1.5)
+])
+def test_interpolate2d(data2d: torch.Tensor, values: torch.Tensor):
+    y = torram.geometry.interpolate2d(data2d, points=torch.tensor([[0.5, 0.5]]))
+    assert torch.allclose(y, values)

@@ -28,6 +28,7 @@ __all__ = ['angle_axis_to_quaternion',
            'transform_points',
            'convert_points_to_homogeneous',
            'convert_rotation',
+           'interpolate2d',
            'Rotations'
            ]
 
@@ -470,3 +471,33 @@ def pose_to_transformation_matrix(t: torch.Tensor, q: torch.Tensor) -> torch.Ten
     T[..., :3, 3] = t
     T[..., :3, :3] = convert_rotation(q, target=Rotations.MATRIX)
     return T
+
+
+def interpolate2d(data: torch.Tensor, points: torch.Tensor, mode: str = "bilinear"):
+    if len(data.shape) != 3:
+        raise ValueError(f"Invalid shape of data, expected (C, H, W), got {data.shape}")
+    if len(points.shape) != 2 or points.shape[-1] != 2:
+        raise ValueError(f"Invalid shape of points, expected (N, 2), got {points.shape}")
+
+    _, h, w = data.shape
+
+    x0 = torch.floor(points).long()
+    u0 = torch.clamp(x0[:, 0], 0, w - 2)
+    v0 = torch.clamp(x0[:, 1], 1, h - 2)
+    u1 = u0 + 1
+    v1 = v0 + 1
+
+    if mode == "bilinear":
+        Ia = data[:, v0, u0]
+        Ib = data[:, v1, u0]
+        Ic = data[:, v0, u1]
+        Id = data[:, v1, u1]
+
+        ud = (points[:, 0] - u0) / (u1 - u0)
+        vd = (points[:, 1] - v0) / (v1 - v0)
+        zv0 = Ia * (1 - ud) + Ic * ud
+        zv1 = Ib * (1 - ud) + Id * ud
+        return zv0 * (1 - vd) + zv1 * vd
+
+    else:
+        raise NotImplementedError(f"Interpolation mode {mode} not supported")
