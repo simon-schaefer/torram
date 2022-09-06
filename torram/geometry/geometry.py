@@ -302,24 +302,27 @@ def rotation_6d_to_axis_angle(x: torch.Tensor) -> torch.Tensor:
     return quaternion_to_angle_axis(x4d)
 
 
-def angle_axis_to_rotation_matrix(x: torch.Tensor) -> torch.Tensor:
-    """Code adapted & simplified from kornia.geometry.angle_axis_to_rotation_matrix"""
+def angle_axis_to_rotation_matrix(x: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+    """Convert 3d vector of axis-angle rotation to 3x3 rotation matrix.
+    Code adapted & simplified from kornia.geometry.angle_axis_to_rotation_matrix
+
+    Args:
+        x: axis-angle vector in radians to convert (*, 3).
+        eps: precision number.
+    Returns:
+        rotation matrix representations of x (*, 3, 3).
+    """
     if not x.shape[-1] == 3:
         raise ValueError(f"Input size must be a (*, 3) tensor. Got {x.shape}")
-    shape = x.shape[:-1]
-    if len(shape) == 0:
-        x_flat = x[None]
-    else:
-        x_flat = torch.flatten(x, end_dim=-2)
 
-    def _compute_rotation_matrix(angle_axis, theta2, eps=1e-6):
+    def _compute_rotation_matrix(angle_axis, theta2):
         # We want to be careful to only evaluate the square root if the
         # norm of the angle_axis vector is greater than zero. Otherwise
         # we get a division by zero.
         k_one = 1.0
         theta = torch.sqrt(theta2)
         wxyz = angle_axis / (theta + eps)
-        wx, wy, wz = torch.chunk(wxyz, 3, dim=1)
+        wx, wy, wz = torch.chunk(wxyz, 3, dim=-1)
         cos_theta = torch.cos(theta)
         sin_theta = torch.sin(theta)
 
@@ -332,32 +335,30 @@ def angle_axis_to_rotation_matrix(x: torch.Tensor) -> torch.Tensor:
         r02 = wy * sin_theta + wx * wz * (k_one - cos_theta)
         r12 = -wx * sin_theta + wy * wz * (k_one - cos_theta)
         r22 = cos_theta + wz * wz * (k_one - cos_theta)
-        rotation_matrix = torch.cat([r00, r01, r02, r10, r11, r12, r20, r21, r22], dim=1)
-        return rotation_matrix.view(-1, 3, 3)
+        rotation_matrix = torch.cat([r00, r01, r02, r10, r11, r12, r20, r21, r22], dim=-1)
+        return rotation_matrix.view(*angle_axis.shape[:-1], 3, 3)
 
     def _compute_rotation_matrix_taylor(angle_axis):
-        rx, ry, rz = torch.chunk(angle_axis, 3, dim=1)
+        rx, ry, rz = torch.chunk(angle_axis, 3, dim=-1)
         k_one = torch.ones_like(rx)
-        rotation_matrix = torch.cat([k_one, -rz, ry, rz, k_one, -rx, -ry, rx, k_one], dim=1)
-        return rotation_matrix.view(-1, 3, 3)
+        rotation_matrix = torch.cat([k_one, -rz, ry, rz, k_one, -rx, -ry, rx, k_one], dim=-1)
+        return rotation_matrix.view(*angle_axis.shape[:-1], 3, 3)
 
     # stolen from ceres/rotation.h
-    _angle_axis = torch.unsqueeze(x_flat, dim=1)
-    theta2 = torch.matmul(_angle_axis, _angle_axis.transpose(1, 2))
-    theta2 = torch.squeeze(theta2, dim=1)
+    _angle_axis = torch.unsqueeze(x, dim=-2)
+    _theta2 = torch.matmul(_angle_axis, _angle_axis.transpose(-1, -2))
+    _theta2 = torch.squeeze(_theta2, dim=-2)
 
     # compute rotation matrices
-    rotation_matrix_normal = _compute_rotation_matrix(x_flat, theta2)
-    rotation_matrix_taylor = _compute_rotation_matrix_taylor(x_flat)
+    rotation_matrix_normal = _compute_rotation_matrix(x, _theta2)
+    rotation_matrix_taylor = _compute_rotation_matrix_taylor(x)
 
     # create mask to handle both cases
-    eps = 1e-6
-    mask = (theta2 > eps).view(-1, 1, 1).to(theta2.device)
-    mask_pos = (mask).type_as(theta2)
-    mask_neg = (~mask).type_as(theta2)
+    mask = (_theta2 > eps).view(*x.shape[:-1], 1, 1).to(_theta2.device)
+    mask_pos = mask.type_as(_theta2)
+    mask_neg = (~mask).type_as(_theta2)
 
-    R_flat = mask_pos * rotation_matrix_normal + mask_neg * rotation_matrix_taylor
-    return R_flat.view(*shape, 3, 3)
+    return mask_pos * rotation_matrix_normal + mask_neg * rotation_matrix_taylor
 
 
 def rotation_matrix_to_rotation_6d(x: torch.Tensor) -> torch.Tensor:

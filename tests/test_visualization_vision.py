@@ -1,5 +1,3 @@
-import os
-import pathlib
 import torch
 import torram
 
@@ -24,19 +22,3 @@ def test_draw_reprojection():
     image_expected = torram.visualization.draw_keypoints(image, points_2d[None], radius=3, colors="red")
     image_hat = torram.visualization.draw_reprojection(image, points_3d[None], K=K, radius=3, colors="red")
     assert torch.allclose(image_hat, image_expected)
-
-
-def test_draw_keypoints_weighted():
-    image_shape = (3, 100, 100)
-    cache_directory = pathlib.Path(os.environ.get("CACHE_DIRECTORY", "/srv/cache"))
-    output_directory = cache_directory / "keypoints_weighted"
-    output_directory.mkdir(exist_ok=True)
-
-    image = torch.zeros(image_shape, dtype=torch.uint8)
-    points = torch.stack([torch.randint(0, image_shape[1], size=(20, ), dtype=torch.long),
-                          torch.randint(0, image_shape[2], size=(20, ), dtype=torch.long)], dim=1)
-    scores = torch.rand((20, ), dtype=torch.float32)
-
-    out = torram.visualization.draw_keypoints_weighted(image, points, scores=scores)
-    assert out.shape == (3, 100, 100)
-    torram.io.write_png(out, output_directory / "test.png")
