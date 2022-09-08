@@ -1,3 +1,4 @@
+from cmath import nan
 import math
 import torch
 
@@ -340,7 +341,8 @@ def T_inv_wrt_T(T: torch.Tensor) -> torch.Tensor:
 def cov_error_propagation(
         x: Union[Normal, MultivariateNormal, torch.Tensor],
         Jx: torch.Tensor,
-        square_form: bool = False
+        square_form: bool = False,
+        nan_to_zero: bool = True
     ) -> torch.Tensor:
     """Covariance error propagation.
 
@@ -359,6 +361,7 @@ def cov_error_propagation(
            diagonal matrix filled with x's variances.
         Jx: jacobian dT/dx.
         square_form: use the square-root form or the standard form to calculate C'.
+        nan_to_zero: convert nan gradients to zeros.
     """
     if isinstance(x, Normal):
         x_cov = diag_last(x.variance)
@@ -366,7 +369,9 @@ def cov_error_propagation(
         x_cov = x.covariance_matrix
     else:
         x_cov = x
-
+    
+    if nan_to_zero:
+        x_cov = torch.nan_to_num(x_cov, nan=0)
     if square_form:
         cov_ = torch.matmul(Jx, torch.sqrt(x_cov))
         return torch.matmul(cov_, cov_.transpose(-1, -2))
