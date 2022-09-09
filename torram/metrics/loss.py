@@ -32,9 +32,10 @@ def full_nll_loss(mean: torch.Tensor, target: torch.Tensor, covariance: torch.Te
     error = mean - target
     error_term = torch.einsum('...i, ...ij, ...j -> ...', error, cov_inv, error)
     if marginalize_cov_norm:
-        norm_term = torch.log(torch.diagonal(covariance, dim1=-2, dim2=-1)).sum(dim=-1)
+        cov_norm = torch.diagonal(covariance, dim1=-2, dim2=-1).sum(dim=-1)
     else:
-        norm_term = torch.log(torch.linalg.det(covariance))
+        cov_norm = torch.linalg.det(covariance)
+    norm_term = torch.log(torch.clamp(cov_norm, min=1e-6))
 
     nll_loss = 0.5 * (error_term + norm_term)  # + k/2*log(2pi)
     if reduction == 'sum':
@@ -43,6 +44,7 @@ def full_nll_loss(mean: torch.Tensor, target: torch.Tensor, covariance: torch.Te
         result = nll_loss.mean()
     else:
         raise ValueError(f"Unknown reduction method {reduction}, choose from [mean, sum]")
+
     return result
 
 
