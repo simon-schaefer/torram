@@ -3,6 +3,7 @@ import pytest
 import torch
 import torram
 
+from torch.nn.functional import normalize
 from typing import Tuple
 
 
@@ -58,15 +59,15 @@ def test_angle_axis_to_rotation_matrix(shape):
     assert torch.allclose(torch.flatten(R_hat, end_dim=-3), R)
 
 
-@pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
-def test_rotation_6d_and_angle_axis(shape):
+@pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3), (3, )])
+def test_rotation_6d_to_angle_axis(shape):
     x3d = torch.rand(shape)
     x6d = torram.geometry.angle_axis_to_rotation_6d(x3d)
     x3d_hat = torram.geometry.rotation_6d_to_axis_angle(x6d)
     assert torch.allclose(x3d_hat, x3d_hat)
 
 
-@pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3)])
+@pytest.mark.parametrize("shape", [(4, 3), (4, 1, 3, 3), (3, )])
 def test_rotation_matrix_to_angle_axis_against_kornia(shape):
     q3d = torch.rand(shape)
     rotation_matrix = torram.geometry.angle_axis_to_rotation_matrix(q3d)
@@ -151,6 +152,22 @@ def test_rotation_matrix_to_quaternion_2d():
     R = torram.geometry.angle_axis_to_rotation_matrix(x3d)
     q_hat = torram.geometry.rotation_matrix_to_quaternion(R)
     assert q_hat.shape == (4, )
+
+
+@pytest.mark.parametrize("shape", [(4, 4), (4, 1, 3, 4), (4, )])
+def test_quaterion_to_rotation_matrix(shape):
+    q = torch.rand(shape)
+    R = torram.geometry.quaternion_to_rotation_matrix(q)
+    q_hat = torram.geometry.rotation_matrix_to_quaternion(R)
+    assert torch.allclose(normalize(q_hat, dim=-1), normalize(q, dim=-1))
+
+
+@pytest.mark.parametrize("shape", [(4, 4), (4, 1, 3, 4), (4, )])
+def test_quaternion_to_angle_axis(shape):
+    q = torch.rand(shape)
+    a = torram.geometry.quaternion_to_angle_axis(q)
+    q_hat = torram.geometry.angle_axis_to_quaternion(a)
+    assert torch.allclose(normalize(q_hat, dim=-1), normalize(q, dim=-1))
 
 
 @pytest.mark.parametrize("data2d, values", [

@@ -1,13 +1,13 @@
 import enum
 import kornia
 import torch
+import torch.nn.functional
 import kornia.geometry.conversions
+
 from kornia.geometry import (
     convert_points_to_homogeneous,
     transform_points
 )
-from torch.nn import functional as F
-import warnings
 
 __all__ = ['angle_axis_to_quaternion',
            'angle_axis_to_rotation_matrix',
@@ -32,8 +32,6 @@ __all__ = ['angle_axis_to_quaternion',
            'Rotations'
            ]
 
-import torram.geometry
-
 
 class Rotations(enum.Enum):
     AXIS_ANGLE = 0
@@ -43,7 +41,8 @@ class Rotations(enum.Enum):
 
 
 def quaternion_to_rotation_matrix(q: torch.Tensor) -> torch.Tensor:
-    """Convert a quaternion (x, y, z, w) to a rotation matrix.
+    """Convert a quaternion (x, y, z, w) to a rotation matrix. Adapted from
+    https://kornia.readthedocs.io/en/latest/_modules/kornia/geometry/conversions.html#quaternion_to_rotation_matrix
 
     >>> quaternion = torch.tensor((0., 0., 0., 1.))
     >>> quaternion_to_rotation_matrix(quaternion)
@@ -52,71 +51,133 @@ def quaternion_to_rotation_matrix(q: torch.Tensor) -> torch.Tensor:
             [ 0.,  0.,  1.]])
 
     Args:
-        q: a tensor containing a quaternion to be converted (..., 4).
+        q: a tensor containing a quaternion to be converted (..., 4), in XYZW order.
     Return:
         the rotation matrix of shape :math:`(..., 3, 3)`.
     """
-    shape = q.shape[:-1]
-    if len(shape) == 0:
-        q_flat = q[None]
-    else:
-        q_flat = torch.flatten(q, end_dim=-2)
+    if not isinstance(q, torch.Tensor):
+        raise TypeError(f"Input type is not a torch.Tensor. Got {type(q)}")
+    if not q.shape[-1] == 4:
+        raise ValueError(f"Input must be a tensor of shape (*, 4). Got {q.shape}")
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
-        rotmat_flat = kornia.geometry.quaternion_to_rotation_matrix(q_flat, order=q_order)
-    return rotmat_flat.view(*shape, 3, 3)
+    # normalize the input quaternion
+    quaternion_norm: torch.Tensor = torch.nn.functional.normalize(q, p=2.0, dim=-1)
+
+    # unpack the normalized quaternion components
+    x, y, z, w = torch.chunk(quaternion_norm, chunks=4, dim=-1)
+
+    # compute the actual conversion
+    tx: torch.Tensor = 2.0 * x
+    ty: torch.Tensor = 2.0 * y
+    tz: torch.Tensor = 2.0 * z
+    twx: torch.Tensor = tx * w
+    twy: torch.Tensor = ty * w
+    twz: torch.Tensor = tz * w
+    txx: torch.Tensor = tx * x
+    txy: torch.Tensor = ty * x
+    txz: torch.Tensor = tz * x
+    tyy: torch.Tensor = ty * y
+    tyz: torch.Tensor = tz * y
+    tzz: torch.Tensor = tz * z
+    one: torch.Tensor = torch.ones_like(x)
+
+    return torch.stack(
+        (
+            one - (tyy + tzz),
+            txy - twz,
+            txz + twy,
+            txy + twz,
+            one - (txx + tzz),
+            tyz - twx,
+            txz - twy,
+            tyz + twx,
+            one - (txx + tyy),
+        ),
+        dim=-1,
+    ).view(*q.shape[:-1], 3, 3)
 
 
 def quaternion_to_angle_axis(q: torch.Tensor) -> torch.Tensor:
-    """Convert quaternion vector (x, y, z, w) to angle axis of rotation in radians.
+    """Convert quaternion vector (x, y, z, w) to angle axis of rotation in radians. Adapted from
+    https://kornia.readthedocs.io/en/latest/_modules/kornia/geometry/conversions.html#quaternion_to_angle_axis
 
     >>> quaternion = torch.tensor((0., 0., 0., 1.))
     >>> quaternion_to_angle_axis(quaternion)
     tensor([3.1416, 0.0000, 0.0000])
 
     Args:
-        q: tensor with quaternions (..., 4).
+        q: tensor with quaternions (..., 4), in XYZW order.
     Return:
         angle axis rotation vector (..., 3).
     """
-    shape = q.shape[:-1]
-    if len(shape) == 0:
-        q_flat = q[None]
-    else:
-        q_flat = torch.flatten(q, end_dim=-2)
+    if not torch.is_tensor(q):
+        raise TypeError(f"Input type is not a torch.Tensor. Got {type(q)}")
+    if not q.shape[-1] == 4:
+        raise ValueError(f"Input must be a tensor of shape Nx4 or 4. Got {q.shape}")
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
-        angle_axis_flat = kornia.geometry.quaternion_to_angle_axis(q_flat, order=q_order)
-    return angle_axis_flat.view(*shape, 3)
+    q1 = q[..., 0]
+    q2 = q[..., 1]
+    q3 = q[..., 2]
+    cos_theta = q[..., 3]
+    sin_squared_theta: torch.Tensor = q1 * q1 + q2 * q2 + q3 * q3
+
+    sin_theta: torch.Tensor = torch.sqrt(sin_squared_theta)
+    two_theta: torch.Tensor = 2.0 * torch.where(
+        cos_theta < 0.0, torch.atan2(-sin_theta, -cos_theta), torch.atan2(sin_theta, cos_theta)
+    )
+
+    k_pos: torch.Tensor = two_theta / sin_theta
+    k_neg: torch.Tensor = 2.0 * torch.ones_like(sin_theta)
+    k: torch.Tensor = torch.where(sin_squared_theta > 0.0, k_pos, k_neg)
+
+    angle_axis: torch.Tensor = torch.zeros_like(q)[..., :3]
+    angle_axis[..., 0] += q1 * k
+    angle_axis[..., 1] += q2 * k
+    angle_axis[..., 2] += q3 * k
+    return angle_axis
 
 
-def angle_axis_to_quaternion(angle_axis: torch.Tensor) -> torch.Tensor:
-    """Convert an angle axis to a quaternion (x, y, z, w).
+def angle_axis_to_quaternion(a: torch.Tensor) -> torch.Tensor:
+    """Convert an angle axis to a quaternion (x, y, z, w). Adapted from
+    https://kornia.readthedocs.io/en/latest/_modules/kornia/geometry/conversions.html#angle_axis_to_quaternion
 
     >>> x = torch.tensor((0., 1., 0.))
     >>> angle_axis_to_quaternion(x)
     tensor([0.0000, 0.4794, 0.0000, 0.8776])
 
     Args:
-        angle_axis: tensor with angle axis in radians (..., 3)
+        a: tensor with angle axis in radians (..., 3)
     Return:
-        tensor with quaternion (..., 4)
+        tensor with quaternion (..., 4), in XYZW order.
     """
-    shape = angle_axis.shape[:-1]
-    if len(shape) == 0:
-        aa_flat = angle_axis[None]
-    else:
-        aa_flat = torch.flatten(angle_axis, end_dim=-2)
+    if not torch.is_tensor(a):
+        raise TypeError(f"Input type is not a torch.Tensor. Got {type(a)}")
+    if not a.shape[-1] == 3:
+        raise ValueError(f"Input must be a tensor of shape Nx3 or 3. Got {a.shape}")
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        q_order = kornia.geometry.conversions.QuaternionCoeffOrder.XYZW
-        quaternion_flat = kornia.geometry.angle_axis_to_quaternion(aa_flat, order=q_order)
-    return quaternion_flat.view(*shape, 4)
+    # unpack input and compute conversion
+    a0: torch.Tensor = a[..., 0:1]
+    a1: torch.Tensor = a[..., 1:2]
+    a2: torch.Tensor = a[..., 2:3]
+    theta_squared: torch.Tensor = a0 * a0 + a1 * a1 + a2 * a2
+
+    theta: torch.Tensor = torch.sqrt(theta_squared)
+    half_theta: torch.Tensor = theta * 0.5
+
+    mask: torch.Tensor = theta_squared > 0.0
+    ones: torch.Tensor = torch.ones_like(half_theta)
+
+    k_neg: torch.Tensor = 0.5 * ones
+    k_pos: torch.Tensor = torch.sin(half_theta) / theta
+    k: torch.Tensor = torch.where(mask, k_pos, k_neg)
+    w: torch.Tensor = torch.where(mask, torch.cos(half_theta), ones)
+
+    quaternion: torch.Tensor = torch.zeros(size=(*a.shape[:-1], 4), dtype=a.dtype, device=a.device)
+    quaternion[..., 0:1] = a0 * k
+    quaternion[..., 1:2] = a1 * k
+    quaternion[..., 2:3] = a2 * k
+    quaternion[..., 3:4] = w
+    return quaternion
 
 
 def rotation_matrix_to_angle_axis(rotation_matrix: torch.Tensor, epsilon: float = 1e-6) -> torch.Tensor:
@@ -205,7 +266,6 @@ def rotation_matrix_to_quaternion(rotation_matrix: torch.Tensor, eps: float = 1e
         raise ValueError(f"Input size must be a (*, 3, 3) tensor. Got {rotation_matrix.shape}")
 
     def safe_zero_division(numerator: torch.Tensor, denominator: torch.Tensor) -> torch.Tensor:
-        eps: float = torch.finfo(numerator.dtype).tiny  # type: ignore
         return numerator / torch.clamp(denominator, min=eps)
 
     shape = rotation_matrix.shape[:-2]
@@ -273,8 +333,8 @@ def rotation_6d_to_rotation_matrix(x: torch.Tensor) -> torch.Tensor:
 
     a1 = x[..., 0]
     a2 = x[..., 1]
-    b1 = F.normalize(a1)
-    b2 = F.normalize(a2 - torch.einsum('bi,bi->b', b1, a2).unsqueeze(-1) * b1)
+    b1 = torch.nn.functional.normalize(a1, dim=-1)
+    b2 = torch.nn.functional.normalize(a2 - torch.einsum('bi,bi->b', b1, a2).unsqueeze(-1) * b1, dim=-1)
     b3 = torch.cross(b1, b2)
 
     rotmat = torch.stack((b1, b2, b3), dim=-1)
@@ -317,7 +377,7 @@ def angle_axis_to_rotation_matrix(x: torch.Tensor, eps: float = 1e-6) -> torch.T
 
     def _compute_rotation_matrix(angle_axis, theta2):
         # We want to be careful to only evaluate the square root if the
-        # norm of the angle_axis vector is greater than zero. Otherwise
+        # norm of the angle_axis vector is greater than zero. Otherwise,
         # we get a division by zero.
         k_one = 1.0
         theta = torch.sqrt(theta2)
@@ -371,14 +431,9 @@ def rotation_matrix_to_rotation_6d(x: torch.Tensor) -> torch.Tensor:
 
 def angle_axis_to_rotation_6d(x: torch.Tensor) -> torch.Tensor:
     """Convert rotation in axis-angle representation to 6d representation."""
-    shape = x.shape[:-1]
-    if len(shape) == 0:
-        x_flat = x[None]
-    else:
-        x_flat = torch.flatten(x, end_dim=-2)
-    y = kornia.geometry.angle_axis_to_rotation_matrix(x_flat)
+    y = kornia.geometry.angle_axis_to_rotation_matrix(x)
     y6d = rotation_matrix_to_rotation_6d(y)
-    return y6d.view(*shape, 6)
+    return y6d
 
 
 def inverse_transformation(x: torch.Tensor) -> torch.Tensor:
@@ -420,6 +475,7 @@ def multiply_angle_axis(a: torch.Tensor, b: torch.Tensor, eps: float = 1e-8) -> 
     Args:
         a: first input angle axis (..., 3).
         b: second input angle axis (..., 3).
+        eps: small number of numerically safe division.
     Returns:
         Composed rotation in angle axis, a tensor of angle axes (..., 3).
     """
