@@ -342,7 +342,7 @@ def cov_error_propagation(
         x: Union[Normal, MultivariateNormal, torch.Tensor],
         Jx: torch.Tensor,
         square_form: bool = False,
-        nan_to_zero: bool = True
+        nan_to_zero: bool = False
     ) -> torch.Tensor:
     """Covariance error propagation.
 
@@ -371,7 +371,7 @@ def cov_error_propagation(
         x_cov = x
     
     if nan_to_zero:
-        x_cov = torch.nan_to_num(x_cov, nan=0)
+        Jx = torch.nan_to_num(Jx, nan=0)
     if square_form:
         cov_ = torch.matmul(Jx, torch.sqrt(x_cov))
         return torch.matmul(cov_, cov_.transpose(-1, -2))

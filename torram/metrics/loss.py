@@ -28,7 +28,7 @@ def full_nll_loss(mean: torch.Tensor, target: torch.Tensor, covariance: torch.Te
     if covariance.shape[:-1] != mean.shape or covariance.shape[-2] != covariance.shape[-1]:
         raise ValueError(f"Non-Matching mean and covariance tensors, got {mean.shape} and {covariance.shape}")
 
-    cov_inv = torch.inverse(covariance)
+    cov_inv = torch.inverse(covariance)  # TODO: use torch.linalg.solve(covariance, error) instead .inverse(...)
     error = mean - target
     error_term = torch.einsum('...i, ...ij, ...j -> ...', error, cov_inv, error)
     if marginalize_cov_norm:
