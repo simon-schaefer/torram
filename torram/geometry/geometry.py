@@ -431,7 +431,7 @@ def rotation_matrix_to_rotation_6d(x: torch.Tensor) -> torch.Tensor:
 
 def angle_axis_to_rotation_6d(x: torch.Tensor) -> torch.Tensor:
     """Convert rotation in axis-angle representation to 6d representation."""
-    y = kornia.geometry.angle_axis_to_rotation_matrix(x)
+    y = angle_axis_to_rotation_matrix(x)
     y6d = rotation_matrix_to_rotation_6d(y)
     return y6d
 
