@@ -1,10 +1,12 @@
 import matplotlib
+import numpy as np
 import kornia
 import torch
 import torchvision
 
 import matplotlib.cm as cm
 from torchvision.utils import draw_segmentation_masks
+from PIL import Image, ImageDraw
 from typing import Optional, List, Tuple, Union
 
 
@@ -85,24 +87,71 @@ def draw_bounding_boxes(
 def __draw_keypoints(
     image: torch.Tensor,
     keypoints: torch.Tensor,
-    connectivity: Optional[List[Tuple[int, int]]] = None,
-    colors: Optional[Union[str, Tuple[int, int, int]]] = "red",
+    colors: Union[str, Tuple[int, int, int], np.ndarray, List[Tuple[int, int, int]]] = "red",
     radius: int = 2,
-    width: int = 3,
 ) -> torch.Tensor:
+    """Internal drawing function for keypoints in an image. Implementation adapted from:
+    https://pytorch.org/vision/stable/_modules/torchvision/utils.html#draw_keypoints
+
+    Args:
+        image: single image tensor (3, H, W), as torch.uint8.
+        keypoints: keypoint 2D positions (N, K, 2).
+        colors: keypoint color as string, RGB tuple, list or numpy array (one RGB tuple for each keypoint).
+        radius: keypoint radius.
+    """
     if keypoints.ndim == 2:
         keypoints = keypoints[None]
-    return torchvision.utils.draw_keypoints(image, keypoints, connectivity, colors, radius=radius, width=width)
+    if not isinstance(image, torch.Tensor):
+        raise TypeError(f"Image must be a tensor, got {type(image)}")
+    elif image.dtype != torch.uint8:
+        raise ValueError(f"Image dtype must be uint8, got {image.dtype}")
+    elif image.dim() != 3:
+        raise ValueError("Pass individual images, not batches")
+    elif image.size()[0] != 3:
+        raise ValueError("Pass an RGB image. Other Image formats are not supported")
+    if keypoints.ndim != 3:
+        raise ValueError("Keypoints must be of shape (num_instances, K, 2)")
+
+    if isinstance(colors, np.ndarray):
+        if colors.shape[-1] != 3:
+            raise ValueError(f"Invalid color shape, expected (N, K, 3), got {colors.shape}")
+        if colors.shape[:-2] != keypoints.shape[:-2]:
+            raise ValueError(f"Colors and keypoints are not matching, got {colors.shape} and {keypoints.shape}")
+    elif isinstance(colors, tuple):
+        if len(colors) != 3:
+            raise ValueError(f"Invalid color tuple, expected (R, G, B), got {colors}")
+    elif isinstance(colors, list):
+        if any([len(color) != 3 for color in colors]):
+            raise ValueError(f"Invalid list of colors, expected list of (R, G, B) tuples, got {colors}")
+        if len(colors) != len(keypoints):
+            raise ValueError(f"Number of colors and keypoints are not matching, got {len(colors)} and {len(keypoints)}")
+
+    img_to_draw = Image.fromarray(image.permute(1, 2, 0).cpu().numpy())
+    draw = ImageDraw.Draw(img_to_draw)
+    img_kpts = keypoints.to(torch.int64).tolist()
+
+    for kpt_id, kpt_inst in enumerate(img_kpts):
+        for inst_id, kpt in enumerate(kpt_inst):
+            x1 = kpt[0] - radius
+            x2 = kpt[0] + radius
+            y1 = kpt[1] - radius
+            y2 = kpt[1] + radius
+            if isinstance(colors, np.ndarray):
+                color = tuple(colors[kpt_id, inst_id].astype(int))
+            elif isinstance(colors, list):
+                color = colors[kpt_id]
+            else:
+                color = colors
+            draw.ellipse([x1, y1, x2, y2], fill=color, outline=None, width=0)
+    return torch.from_numpy(np.array(img_to_draw)).permute(2, 0, 1).to(dtype=torch.uint8)
 
 
 @torch.no_grad()
 def draw_keypoints(
     images: torch.Tensor,
     keypoints: torch.Tensor,
-    connectivity: Optional[List[Tuple[int, int]]] = None,
-    colors: Optional[Union[str, Tuple[int, int, int]]] = "red",
-    radius: int = 2,
-    width: int = 3,
+    colors: Union[str, Tuple[int, int, int], np.ndarray, List[Tuple[int, int, int]]] = "red",
+    radius: int = 2
 ) -> torch.Tensor:
     """
     Draws key-points on a given batch of images or a single image.
@@ -111,11 +160,9 @@ def draw_keypoints(
         images: Tensor of shape ([M,] 3, H, W) and dtype uint8.
         keypoints: Tensor of shape ([M,] N, K, 2) the K keypoints location for each of the N instances,
             in the format [x, y].
-        connectivity: A List of tuple where, each tuple contains pair of keypoints to be connected.
-        colors: The color can be represented as PIL strings e.g. "red" or "#FF00FF",
-            or as RGB tuples e.g. ``(240, 10, 157)``.
+        colors: The color can be represented as PIL strings ("red" or "#FF00FF"), as RGB tuples (240, 10, 157),
+            as list of RGB tuples (N x (R, G, B)) or numpy.array containing a RGB tuple for each keypoint([M,] N, K, 3).
         radius: Integer denoting radius of keypoint.
-        width: Integer denoting width of line connecting keypoints.
 
     Returns:
         images: Batch of image tensors or single image tensor of dtype uint8 with keypoints drawn. ([M,] C, H, W).
@@ -123,16 +170,26 @@ def draw_keypoints(
     if len(images.shape) == 3:
         if len(keypoints.shape) not in [2, 3]:
             raise ValueError(f"Invalid shape of keypoints, expected (N, K, 2), got {keypoints.shape}")
-        return __draw_keypoints(images, keypoints, connectivity, colors, radius, width)
+        return __draw_keypoints(images, keypoints, colors=colors, radius=radius)
+
     elif len(images.shape) == 4:
         if len(keypoints.shape) not in [3, 4]:
             raise ValueError(f"Invalid shape of keypoints, expected (M, N, K, 2), got {keypoints.shape}")
         if len(images) != len(keypoints):
             raise ValueError(f"Non-Matching images and keypoints, got {images.shape} and {keypoints.shape}")
+        if isinstance(colors, np.ndarray) and len(colors) != len(images):
+            raise ValueError(f"Non-Matching images and colors, got {images.shape} and {colors.shape}")
+        if len(keypoints.shape) == 3:
+            keypoints = keypoints[:, None]
+            colors = colors[:, None]
+
         output_images = torch.zeros_like(images)
-        for k, (image, keypoints_k) in enumerate(zip(images, keypoints)):
-            output_images[k] = __draw_keypoints(image, keypoints_k, connectivity, colors, radius, width)
+        if not isinstance(colors, np.ndarray):
+            colors = [colors] * len(output_images)
+        for k, (image, keypoints_k, colors_k) in enumerate(zip(images, keypoints, colors)):
+            output_images[k] = __draw_keypoints(image, keypoints_k, colors=colors_k, radius=radius)
         return output_images
+
     else:
         raise ValueError(f"Got neither batch nor single image, got {images.shape}")
 

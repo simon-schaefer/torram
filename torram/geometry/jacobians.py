@@ -1,4 +1,3 @@
-from cmath import nan
 import math
 import torch
 
@@ -68,9 +67,9 @@ def q3d_wrt_T(T: torch.Tensor, epsilon: float = 1e-4) -> torch.Tensor:
 
     # "Normal" transformation jacobian.
     a = torch.clamp(r00 + r11 + r22 - 1, -2 + epsilon, 2 - epsilon)
-    b = torch.sqrt((r01 - r10)**2 + (r02 - r20)**2 + (r12 - r21)**2) + epsilon
+    b = torch.sqrt((r01 - r10) ** 2 + (r02 - r20) ** 2 + (r12 - r21) ** 2) + epsilon
     c = torch.acos(a / 2)
-    norm1 = torch.sqrt(4 - a**2) * b
+    norm1 = torch.sqrt(4 - a ** 2) * b
     norm2 = b ** 3 + epsilon
     J_n = torch.zeros((*batch_size, 3, 4, 4), dtype=T.dtype, device=T.device)
     J_n[..., 0, 0, 0] = (r12 - r21) / norm1
@@ -78,23 +77,23 @@ def q3d_wrt_T(T: torch.Tensor, epsilon: float = 1e-4) -> torch.Tensor:
     J_n[..., 2, 0, 0] = (r01 - r10) / norm1
     J_n[..., 0, 0, 1] = (r01 - r10) * (r12 - r21) * c / norm2
     J_n[..., 1, 0, 1] = -(r01 - r10) * (r02 - r20) * c / norm2
-    J_n[..., 2, 0, 1] = -((r20 - r02)**2 + (r12 - r21)**2) * c / norm2
+    J_n[..., 2, 0, 1] = -((r20 - r02) ** 2 + (r12 - r21) ** 2) * c / norm2
     J_n[..., 0, 0, 2] = (r02 - r20) * (r12 - r21) * c / norm2
-    J_n[..., 1, 0, 2] = ((r01 - r10)**2 + (r12 - r21)**2) * c / norm2
+    J_n[..., 1, 0, 2] = ((r01 - r10) ** 2 + (r12 - r21) ** 2) * c / norm2
     J_n[..., 2, 0, 2] = (r01 - r10) * (r02 - r20) * c / norm2
     J_n[..., 0, 1, 0] = -(r01 - r10) * (r12 - r21) * c / norm2
     J_n[..., 1, 1, 0] = (r01 - r10) * (r02 - r20) * c / norm2
-    J_n[..., 2, 1, 0] = ((r02 - r20)**2 + (r12 - r21)**2) * c / norm2
+    J_n[..., 2, 1, 0] = ((r02 - r20) ** 2 + (r12 - r21) ** 2) * c / norm2
     J_n[..., 0, 1, 1] = (r12 - r21) / norm1
     J_n[..., 1, 1, 1] = (r20 - r02) / norm1
     J_n[..., 2, 1, 1] = (r01 - r10) / norm1
-    J_n[..., 0, 1, 2] = - ((r01 - r10)**2 + (r20 - r02)**2) * c / norm2
+    J_n[..., 0, 1, 2] = - ((r01 - r10) ** 2 + (r20 - r02) ** 2) * c / norm2
     J_n[..., 1, 1, 2] = -(r02 - r20) * (r12 - r21) * c / norm2
     J_n[..., 2, 1, 2] = (r01 - r10) * (r12 - r21) * c / norm2
     J_n[..., 0, 2, 0] = -(r02 - r20) * (r12 - r21) * c / norm2
-    J_n[..., 1, 2, 0] = - ((r01 - r10)**2 + (r12 - r21)**2) * c / norm2
+    J_n[..., 1, 2, 0] = - ((r01 - r10) ** 2 + (r12 - r21) ** 2) * c / norm2
     J_n[..., 2, 2, 0] = -(r01 - r10) * (r02 - r20) * c / norm2
-    J_n[..., 0, 2, 1] = ((r01 - r10)**2 + (r02 - r20)**2) * c / norm2
+    J_n[..., 0, 2, 1] = ((r01 - r10) ** 2 + (r02 - r20) ** 2) * c / norm2
     J_n[..., 1, 2, 1] = (r02 - r20) * (r12 - r21) * c / norm2
     J_n[..., 2, 2, 1] = -(r01 - r10) * (r12 - r21) * c / norm2
     J_n[..., 0, 2, 2] = (r12 - r21) / norm1
@@ -128,7 +127,7 @@ def T_wrt_q3d(q3d: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
     J = torch.zeros((*batch_size, 4, 4, 3), dtype=q3d.dtype, device=q3d.device)
 
     phi = torch.norm(q3d, dim=-1, keepdim=True) + eps
-    phi2 = phi**2
+    phi2 = phi ** 2
     sin_t = torch.sin(phi)
     sinc_t = sin_t / phi
     cos_t = torch.cos(phi)
@@ -161,7 +160,7 @@ def T_wrt_q3d(q3d: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
     generator = torch.cat((generator_Rx, generator_Ry, generator_Rz), dim=-1)
     generator = torch.einsum('...i,jk->...jk', sinc_t, generator)
 
-    M = 2 * c_1 / phi2**2 * K_2 + sinc_t / phi2 * (K_2 - K_) + cos_t / phi2 * K_
+    M = 2 * c_1 / phi2 ** 2 * K_2 + sinc_t / phi2 * (K_2 - K_) + cos_t / phi2 * K_
     M_rotvec = torch.einsum('...i,...j->...ij', M, q3d)
     J_rot = M_rotvec + special_K + generator
     J[..., :3, :3, :] = J_rot.view(*batch_size, 3, 3, 3)
@@ -176,55 +175,55 @@ def T_wrt_q4d(q4d: torch.Tensor) -> torch.Tensor:
     qz = qz[..., 0]
     qw = qw[..., 0]
 
-    norm = (qw**2 + qx**2 + qy**2 + qz**2)
-    wz_minus_xy = (qw*qz - qx*qy)
-    wy_plus_xz = (qw*qy + qx*qz)
-    wz_plus_xy = (qw*qz + qx*qy)
-    wx_minus_yz = (qw*qx - qy*qz)
-    wy_minus_xz = (qw*qy - qx*qz)
-    wx_plus_yz = (qw*qx + qy*qz)
+    norm = (qw ** 2 + qx ** 2 + qy ** 2 + qz ** 2)
+    wz_minus_xy = (qw * qz - qx * qy)
+    wy_plus_xz = (qw * qy + qx * qz)
+    wz_plus_xy = (qw * qz + qx * qy)
+    wx_minus_yz = (qw * qx - qy * qz)
+    wy_minus_xz = (qw * qy - qx * qz)
+    wx_plus_yz = (qw * qx + qy * qz)
 
-    J[..., 0, 0, 0] = (4.0*qx*(qy**2 + qz**2))
-    J[..., 0, 1, 0] = (4.0*qx*wz_minus_xy + 2.0*qy*norm)
-    J[..., 0, 2, 0] = (-4.0*qx*wy_plus_xz + 2.0*qz*norm)
-    J[..., 1, 0, 0] = (-4.0*qx*wz_plus_xy + 2.0*qy*norm)
-    J[..., 1, 1, 0] = (4.0*qx*(-qw**2 - qy**2))
-    J[..., 1, 2, 0] = (-2.0*qw*norm + 4.0*qx*wx_minus_yz)
-    J[..., 2, 0, 0] = (4.0*qx*wy_minus_xz + 2.0*qz*norm)
-    J[..., 2, 1, 0] = (2.0*qw*norm - 4.0*qx*wx_plus_yz)
-    J[..., 2, 2, 0] = (4.0*qx*(-qw**2 - qz**2))
+    J[..., 0, 0, 0] = (4.0 * qx * (qy ** 2 + qz ** 2))
+    J[..., 0, 1, 0] = (4.0 * qx * wz_minus_xy + 2.0 * qy * norm)
+    J[..., 0, 2, 0] = (-4.0 * qx * wy_plus_xz + 2.0 * qz * norm)
+    J[..., 1, 0, 0] = (-4.0 * qx * wz_plus_xy + 2.0 * qy * norm)
+    J[..., 1, 1, 0] = (4.0 * qx * (-qw ** 2 - qy ** 2))
+    J[..., 1, 2, 0] = (-2.0 * qw * norm + 4.0 * qx * wx_minus_yz)
+    J[..., 2, 0, 0] = (4.0 * qx * wy_minus_xz + 2.0 * qz * norm)
+    J[..., 2, 1, 0] = (2.0 * qw * norm - 4.0 * qx * wx_plus_yz)
+    J[..., 2, 2, 0] = (4.0 * qx * (-qw ** 2 - qz ** 2))
 
-    J[..., 0, 0, 1] = (4.0*qy*(-qw**2 - qx**2))
-    J[..., 0, 1, 1] = (2.0*qx*norm + 4.0*qy*wz_minus_xy)
-    J[..., 0, 2, 1] = (2.0*qw*norm - 4.0*qy*wy_plus_xz)
-    J[..., 1, 0, 1] = (2.0*qx*norm - 4.0*qy*wz_plus_xy)
-    J[..., 1, 1, 1] = (4.0*qy*(qx**2 + qz**2))
-    J[..., 1, 2, 1] = (4.0*qy*wx_minus_yz + 2.0*qz*norm)
-    J[..., 2, 0, 1] = (-2.0*qw*norm + 4.0*qy*wy_minus_xz)
-    J[..., 2, 1, 1] = (-4.0*qy*wx_plus_yz + 2.0*qz*norm)
-    J[..., 2, 2, 1] = (4.0*qy*(-qw**2 - qz**2))
+    J[..., 0, 0, 1] = (4.0 * qy * (-qw ** 2 - qx ** 2))
+    J[..., 0, 1, 1] = (2.0 * qx * norm + 4.0 * qy * wz_minus_xy)
+    J[..., 0, 2, 1] = (2.0 * qw * norm - 4.0 * qy * wy_plus_xz)
+    J[..., 1, 0, 1] = (2.0 * qx * norm - 4.0 * qy * wz_plus_xy)
+    J[..., 1, 1, 1] = (4.0 * qy * (qx ** 2 + qz ** 2))
+    J[..., 1, 2, 1] = (4.0 * qy * wx_minus_yz + 2.0 * qz * norm)
+    J[..., 2, 0, 1] = (-2.0 * qw * norm + 4.0 * qy * wy_minus_xz)
+    J[..., 2, 1, 1] = (-4.0 * qy * wx_plus_yz + 2.0 * qz * norm)
+    J[..., 2, 2, 1] = (4.0 * qy * (-qw ** 2 - qz ** 2))
 
-    J[..., 0, 0, 2] = (4.0*qz*(-qw**2 - qx**2))
-    J[..., 0, 1, 2] = (-2.0*qw*norm + 4.0*qz*wz_minus_xy)
-    J[..., 0, 2, 2] = (2.0*qx*norm - 4.0*qz*wy_plus_xz)
-    J[..., 1, 0, 2] = (2.0*qw*norm - 4.0*qz*wz_plus_xy)
-    J[..., 1, 1, 2] = (4.0*qz*(-qw**2 - qy**2))
-    J[..., 1, 2, 2] = (2.0*qy*norm + 4.0*qz*wx_minus_yz)
-    J[..., 2, 0, 2] = (2.0*qx*norm + 4.0*qz*wy_minus_xz)
-    J[..., 2, 1, 2] = (2.0*qy*norm - 4.0*qz*wx_plus_yz)
-    J[..., 2, 2, 2] = (4.0*qz*(qx**2 + qy**2))
+    J[..., 0, 0, 2] = (4.0 * qz * (-qw ** 2 - qx ** 2))
+    J[..., 0, 1, 2] = (-2.0 * qw * norm + 4.0 * qz * wz_minus_xy)
+    J[..., 0, 2, 2] = (2.0 * qx * norm - 4.0 * qz * wy_plus_xz)
+    J[..., 1, 0, 2] = (2.0 * qw * norm - 4.0 * qz * wz_plus_xy)
+    J[..., 1, 1, 2] = (4.0 * qz * (-qw ** 2 - qy ** 2))
+    J[..., 1, 2, 2] = (2.0 * qy * norm + 4.0 * qz * wx_minus_yz)
+    J[..., 2, 0, 2] = (2.0 * qx * norm + 4.0 * qz * wy_minus_xz)
+    J[..., 2, 1, 2] = (2.0 * qy * norm - 4.0 * qz * wx_plus_yz)
+    J[..., 2, 2, 2] = (4.0 * qz * (qx ** 2 + qy ** 2))
 
-    J[..., 0, 0, 3] = (4.0*qw*(qy**2 + qz**2))
-    J[..., 0, 1, 3] = (4.0*qw*wz_minus_xy - 2.0*qz*norm)
-    J[..., 0, 2, 3] = (-4.0*qw*wy_plus_xz + 2.0*qy*norm)
-    J[..., 1, 0, 3] = (-4.0*qw*wz_plus_xy + 2.0*qz*norm)
-    J[..., 1, 1, 3] = (4.0*qw*(qx**2 + qz**2))
-    J[..., 1, 2, 3] = (4.0*qw*wx_minus_yz - 2.0*qx*norm)
-    J[..., 2, 0, 3] = (4.0*qw*wy_minus_xz - 2.0*qy*norm)
-    J[..., 2, 1, 3] = (-4.0*qw*wx_plus_yz + 2.0*qx*norm)
-    J[..., 2, 2, 3] = (4.0*qw*(qx**2 + qy**2))
+    J[..., 0, 0, 3] = (4.0 * qw * (qy ** 2 + qz ** 2))
+    J[..., 0, 1, 3] = (4.0 * qw * wz_minus_xy - 2.0 * qz * norm)
+    J[..., 0, 2, 3] = (-4.0 * qw * wy_plus_xz + 2.0 * qy * norm)
+    J[..., 1, 0, 3] = (-4.0 * qw * wz_plus_xy + 2.0 * qz * norm)
+    J[..., 1, 1, 3] = (4.0 * qw * (qx ** 2 + qz ** 2))
+    J[..., 1, 2, 3] = (4.0 * qw * wx_minus_yz - 2.0 * qx * norm)
+    J[..., 2, 0, 3] = (4.0 * qw * wy_minus_xz - 2.0 * qy * norm)
+    J[..., 2, 1, 3] = (-4.0 * qw * wx_plus_yz + 2.0 * qx * norm)
+    J[..., 2, 2, 3] = (4.0 * qw * (qx ** 2 + qy ** 2))
 
-    return J / (norm**2)[..., None, None, None]
+    return J / (norm ** 2)[..., None, None, None]
 
 
 def q4d_wrt_T(T: torch.Tensor) -> torch.Tensor:
@@ -346,7 +345,7 @@ def cov_error_propagation(
     ) -> torch.Tensor:
     """Covariance error propagation.
 
-    For a coveriance matrix C which is transformed by some transform T(x) with jacobian J(x) = dT/dx, the
+    For a covariance matrix C which is transformed by some transform T(x) with jacobian J(x) = dT/dx, the
     transformed covariance matrix C' is:
 
     C' = J * C * J^T

@@ -7,7 +7,7 @@ __all__ = ['acceleration',
 
 
 def acceleration(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
-    """"Point cloud acceleration error i.e. the euclidean distance between the acceleration of the predicted point cloud
+    """Point cloud acceleration error i.e. the euclidean distance between the acceleration of the predicted point cloud
     (w.r.t. gt positions at k - 1 and k + 1) and the acceleration of ground-truth point cloud.
     Inspired by: https://github.com/akanazawa/human_dynamics/
 

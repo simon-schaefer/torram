@@ -47,8 +47,8 @@ def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: 
 
     K = P_hat @ torch.inverse(P_hat + R)
     x_f = x_hat + torch.einsum('...ij, ...j->...i', K, z - x_hat)
-    I = torch.eye(n, device=K.device, dtype=K.dtype)
-    P_f = (I - K) @ P_hat @ (I - K).transpose(-1, -2) + K @ R @ K.transpose(-1, -2)
+    eye = torch.eye(n, device=K.device, dtype=K.dtype)
+    P_f = (eye - K) @ P_hat @ (eye - K).transpose(-1, -2) + K @ R @ K.transpose(-1, -2)
 
     assert torch.all(torch.real(torch.linalg.eig(P_f).eigenvalues) > 0)  # ensure positive definiteness
     P_f = 0.5 * (P_f + P_f.transpose(-1, -2))  # ensure symmetry

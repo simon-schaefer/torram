@@ -10,7 +10,7 @@ __all__ = [
 
 
 def diag_last(x: torch.Tensor) -> torch.Tensor:
-    """"Make diagonal matrix from the last dimension of x, for any shape of x.
+    """Make diagonal matrix from the last dimension of x, for any shape of x.
 
     Args:
         x: input tensor (..., D).
@@ -41,7 +41,7 @@ def eye(shape: Union[torch.Size, Tuple[int, ...]], dtype: torch.dtype = None, de
     return diag_last(out_diagonal)
 
 
-def eye_like(x: torch.Tensor, requires_grad = False) -> torch.Tensor:
+def eye_like(x: torch.Tensor, requires_grad: bool = False) -> torch.Tensor:
     """Make identity matrix like given matrix (shape, device, dtype).
 
     >>> y = torch.rand((4, 7, 2, 2))
