@@ -181,6 +181,7 @@ def draw_keypoints(
             raise ValueError(f"Non-Matching images and colors, got {images.shape} and {colors.shape}")
         if len(keypoints.shape) == 3:
             keypoints = keypoints[:, None]
+        if isinstance(colors, np.ndarray) and len(colors.shape) == 3:
             colors = colors[:, None]
 
         output_images = torch.zeros_like(images)
@@ -195,15 +196,21 @@ def draw_keypoints(
 
 
 @torch.no_grad()
-def draw_reprojection(image: torch.Tensor, pc_C: torch.Tensor, K: torch.Tensor,
-                      colors: Union[str, Tuple[int, int, int]] = (255, 0, 0), radius: int = 2) -> torch.Tensor:
+def draw_reprojection(
+    image: torch.Tensor,
+    pc_C: torch.Tensor,
+    K: torch.Tensor,
+    colors: Union[str, Tuple[int, int, int], np.ndarray, List[Tuple[int, int, int]]] = "red",
+    radius: int = 2
+) -> torch.Tensor:
     """Re-Project a point cloud in the camera frame to the image plane and draw the points.
 
     Args:
         pc_C: point cloud in camera frame (N, 3).
         image: base image to color pixels in.
         K: camera intrinsics for re-projection (3, 3).
-        colors: color of colored pixels, either as RGB tuple or hex color (uniform color).
+        colors: The color can be represented as PIL strings ("red" or "#FF00FF"), as RGB tuples (240, 10, 157),
+            as list of RGB tuples (N x (R, G, B)) or numpy.array containing a RGB tuple for each keypoint(N, K, 3).
         radius: radius of drawn keypoints.
     """
     if pc_C.ndim != 3 or pc_C.shape[-1] != 3:
