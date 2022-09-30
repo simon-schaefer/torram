@@ -54,6 +54,7 @@ class RealsenseRGBDriver:
             return None
         color_frame = np.asanyarray(color_frame.get_data())
         color_frame = color_frame.transpose((2, 0, 1))  # (H, W, 3) -> (3, H, W)
+        color_frame = color_frame[[2, 1, 0]]
 
         intrinsics = frame.get_profile().as_video_stream_profile().get_intrinsics()
         K = np.array([[intrinsics.fx, 0, intrinsics.ppx], [0, intrinsics.fy, intrinsics.ppy], [0, 0, 1]])
