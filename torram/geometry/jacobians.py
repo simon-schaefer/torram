@@ -372,7 +372,8 @@ def cov_error_propagation(
     if nan_to_zero:
         Jx = torch.nan_to_num(Jx, nan=0)
     if square_form:
-        cov_ = torch.matmul(Jx, torch.sqrt(x_cov))
+        x_cov_ = torch.clamp_min(x_cov, min=1e-6)  # for numerical stability
+        cov_ = torch.matmul(Jx, torch.sqrt(x_cov_))
         return torch.matmul(cov_, cov_.transpose(-1, -2))
     return torch.einsum('...ij,...jk,...kl->...il', Jx, x_cov, Jx.transpose(-1, -2))
 
