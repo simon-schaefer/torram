@@ -62,7 +62,7 @@ def test_pa_pve_translated(shape):
     x = torch.rand(shape, dtype=torch.float32)
     y = x - torch.rand((batch_size, 1, d), dtype=torch.float32).repeat(1, n, 1)
     pa_pve = torram.metrics.pa_pve(x, y)
-    assert torch.allclose(pa_pve, torch.zeros_like(pa_pve), atol=1e-5)
+    assert torch.allclose(pa_pve, torch.zeros_like(pa_pve), atol=1e-3)
 
 
 @pytest.mark.parametrize("shape", ((1, 1, 3), (5, 1, 3), (1, 3, 3), (5, 7, 3)))
@@ -74,7 +74,7 @@ def test_pa_pve_rotation(shape):
     x = torch.rand(shape, dtype=torch.float32)
     y = torch.einsum('bij,bkj->bki', R, x)
     pa_pve = torram.metrics.pa_pve(x, y)
-    assert torch.allclose(pa_pve, torch.zeros_like(pa_pve), atol=1e-5)
+    assert torch.allclose(pa_pve, torch.zeros_like(pa_pve), atol=1e-3)
 
 
 @pytest.mark.parametrize("shape", ((1, 1, 3), (5, 1, 3), (1, 3, 3), (5, 7, 3)))
@@ -88,4 +88,4 @@ def test_pa_pve_affine(shape, scale):
     x = torch.rand(shape, dtype=torch.float32)
     y = torram.geometry.transform_points(T, x) * scale
     pa_pve = torram.metrics.pa_pve(x, y)
-    assert torch.allclose(pa_pve, torch.zeros_like(pa_pve), atol=1e-4)
+    assert torch.allclose(pa_pve, torch.zeros_like(pa_pve), atol=1e-3)

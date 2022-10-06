@@ -27,11 +27,18 @@ def test_diag_last_output_shape(shape: Tuple[int]):
     assert y.shape == (*shape, shape[-1])
 
 
-def test_diag_values():
+def test_diag_last_values():
     x = torch.rand((3, 3))
     y = torram.geometry.diag_last(x)
     for i in range(3):
         assert torch.allclose(y[i], torch.diag(x[i, :]))  # torch.diag(1D tensor) => diagonal matrix
+
+
+def test_diag_last_grad_safe():
+    a = torch.rand((3, 2, 4), requires_grad=True)
+    out = torram.geometry.diag_last(a)
+    grad = torch.autograd.grad(out.sum(), a)[0]
+    assert not torch.any(torch.isnan(grad))
 
 
 @pytest.mark.parametrize("shape", ((1, ), (1, 1, 1), (7, 5, 3, 2)))
