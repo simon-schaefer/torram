@@ -1,40 +1,56 @@
 import torch
 from typing import Tuple
 
-__all__ = ['acceleration',
+__all__ = ['acceleration_error',
+           'acceleration',
            'pve',
            'pa_pve']
 
 
-def acceleration(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+def acceleration_error(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     """Point cloud acceleration error i.e. the euclidean distance between the acceleration of the predicted point cloud
     (w.r.t. gt positions at k - 1 and k + 1) and the acceleration of ground-truth point cloud.
-    Inspired by: https://github.com/akanazawa/human_dynamics/
+    Inspired by:
+    https://github.com/akanazawa/human_dynamics/blob/0887f37464c9a079ad7d69c8358cecd0f43c4f2a/src/evaluation/eval_util.py
+    & https://github.com/mkocabas/VIBE/blob/851f779407445b75cd1926402f61c931568c6947/lib/utils/eval_utils.py
 
     acc_error = 1/(n-2) sum_{i=1}^{n-1} X_{i-1} - 2X_i + X_{i+1}
 
     Args:
-        x_hat: predicted point positions at time-step k (B, N, 3).
-        x: ground-truth point positions at time-steps [k-1, k, k+1] (B, 3, N, 3).
+        x_hat: predicted point positions (..., T, N, 3).
+        x: ground-truth point positions (..., T, N, 3).
     """
-    if x_hat.ndim != 3 or x_hat.shape[-1] != 3:
-        raise ValueError(f"Invalid prediction shape, expected (B, N, 3), got {x_hat.shape}")
-    if x.ndim != 4 or x.shape[-1] != 3 or x.shape[1] != 3:
-        raise ValueError(f"Invalid target shape, expected (B, 3, N, 3), got {x.shape}")
-    if len(x_hat) != len(x) or x_hat.shape[-2] != x.shape[-2]:
+    if x_hat.ndim < 3 or x_hat.shape[-1] != 3:
+        raise ValueError(f"Invalid prediction shape, expected (..., T, N, 3), got {x_hat.shape}")
+    if x.shape != x_hat.shape:
         raise ValueError(f"Not matching prediction and target, got {x.shape} and {x_hat.shape}")
 
-    accel = x[:, 0] - 2 * x[:, 1] + x[:, 2]
-    accel_hat = x[:, 0] - 2 * x_hat + x[:, 2]
-    return torch.mean((accel_hat - accel).norm(dim=-1), dim=-1)
+    accel = x[..., :-2, :, :] - 2 * x[..., 1:-1, :, :] + x[..., 2:, :, :]
+    accel_hat = x_hat[..., :-2, :, :] - 2 * x_hat[..., 1:-1, :, :] + x_hat[..., 2:, :, :]
+    # average of all points N and timesteps T - 2
+    return torch.linalg.norm(accel_hat - accel, dim=-1).mean(dim=-1).mean(dim=-1)
+
+
+def acceleration(x: torch.Tensor) -> torch.Tensor:
+    """Point cloud acceleration, i.e. the acceleration of the vertices of the point cloud.
+
+    Args:
+        x: point positions (..., T, N, 3).
+    """
+    if x.ndim < 3 or x.shape[-1] != 3:
+        raise ValueError(f"Invalid point cloud shape, expected (..., T, N, 3), got {x.shape}")
+    velocities = x[..., 1:, :, :] - x[..., :-1, :, :]
+    accel = velocities[..., 1:, :, :] - velocities[..., :-1, :, :]
+    # average of all points N and timesteps T - 2
+    return torch.linalg.norm(accel, dim=-1).mean(dim=-1).mean(dim=-1)
 
 
 def pve(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
     """Mean per vertex error using the raw point cloud, i.e. without alignments.
 
     Args:
-        x_hat: predicted vertices (B, N, 3).
-        x: ground-truth vertices (B, N, 3).
+        x_hat: predicted vertices (..., N, 3).
+        x: ground-truth vertices (..., N, 3).
     """
     __check_matching_3d_point_clouds(x_hat, x)
     return torch.mean((x_hat - x).norm(dim=-1), dim=-1)

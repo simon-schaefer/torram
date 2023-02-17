@@ -5,17 +5,22 @@ __all__ = ['mpjpe',
            'pa_mpjpe']
 
 
-def mpjpe(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
+def mpjpe(x_hat: torch.Tensor, x: torch.Tensor, align: bool = True) -> torch.Tensor:
     """Mean Per Joint Position Error after pelvis alignment.
 
     Args:
-        x_hat: predicted joints (B, N_joints, 3).
-        x: ground-truth joints (B, N_joints, 3).
+        x_hat: predicted joints (..., N_joints, 3).
+        x: ground-truth joints (..., N_joints, 3).
+        align: align pelvis.
     """
     if not x_hat.ndim == x.ndim == 3:
-        raise ValueError(f"Invalid joint shape, expected (B, N, 3), got {x.shape} and {x_hat.shape}")
-    x_hat_aligned = __align_by_pelvis(x_hat)
-    x_aligned = __align_by_pelvis(x)
+        raise ValueError(f"Invalid joint shape, expected (..., N, 3), got {x.shape} and {x_hat.shape}")
+    if align:
+        x_hat_aligned = __align_by_pelvis(x_hat)
+        x_aligned = __align_by_pelvis(x)
+    else:
+        x_hat_aligned = x_hat
+        x_aligned = x
     return torram.metrics.pve(x_hat_aligned, x_aligned)
 
 
