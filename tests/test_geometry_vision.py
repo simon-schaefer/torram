@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 import torch
 import torram
@@ -89,6 +90,23 @@ def test_box_including_2d_bounds():
     points = torch.tensor([[-2, 3], [3, 7], [0, 120]])
     bbox = torram.geometry.box_including_2d(points, x_max=100, y_max=100, offset=0)
     assert torch.all(torch.less_equal(bbox, 100))
+
+
+def test_boxes_to_masks():
+    width, height = 480, 360
+    bounding_boxes = torch.tensor([[20, 20, 70, 80], [100, 80, 200, 200]])
+    masks = torram.geometry.boxes_to_masks(bounding_boxes, (width, height))
+
+    assert masks.shape == (2, height, width)
+    assert masks.is_contiguous()
+    x = torch.arange(width)
+    y = torch.arange(height)
+    for i, bbox in enumerate(bounding_boxes):
+        assert torch.all(masks[i, bbox[1]:bbox[3], bbox[0]:bbox[2]])  # all true within bounding box
+        assert not torch.any(masks[i, y > bbox[3], :])  # false anywhere else
+        assert not torch.any(masks[i, y < bbox[1], :])
+        assert not torch.any(masks[i, :, x > bbox[2]])
+        assert not torch.any(masks[i, :, x < bbox[0]])
 
 
 @pytest.mark.parametrize("shape", ((1, ), (4, 2, 1), (1, 1, )))

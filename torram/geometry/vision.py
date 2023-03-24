@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn.functional
 import torchvision.transforms.functional
@@ -10,6 +11,8 @@ __all__ = ['depth_to_3d',
            'project_points',
            'is_in_image',
            'box_including_2d',
+           'boxes_to_masks',
+           'meshes_to_masks',
            'pad',
            'normalize_images',
            'warp']
@@ -126,7 +129,7 @@ def box_including_2d(points_2d: torch.Tensor, x_min: Optional[int] = None, y_min
         y_max: maximal y coordinate.
         offset: offset from the smallest possible box (in both directions).
     Returns:
-        boxes [..., 4].
+        boxes [..., 4], with [x_min, y_min, x_max, y_max]
     """
     u_min = torch.min(points_2d[..., 0], dim=-1).values - offset
     u_max = torch.max(points_2d[..., 0], dim=-1).values + offset
@@ -142,7 +145,73 @@ def box_including_2d(points_2d: torch.Tensor, x_min: Optional[int] = None, y_min
     return torch.stack([u_min, v_min, u_max, v_max], dim=-1)
 
 
+def boxes_to_masks(bounding_boxes: torch.Tensor, image_shape: Tuple[int, int]) -> torch.Tensor:
+    """Convert bounding boxes to image masks with specified width and height.
+
+    Args:
+        bounding_boxes: input bounding boxes (..., 4).
+        image_shape: (width, height) of corresponding image.
+    Returns:
+        mask with True inside the bounding boxes, False elsewhere (..., height, width).
+    """
+    if bounding_boxes.shape[-1] != 4:
+        raise ValueError(f"Invalid input bounding boxes, expected (..., 4), got {bounding_boxes.shape}")
+    if torch.is_floating_point(bounding_boxes) or torch.is_complex(bounding_boxes):
+        raise ValueError(f"Invalid input bounding boxes, expected int type, got {bounding_boxes.dtype}")
+    bbox_flat = torch.flatten(bounding_boxes, end_dim=-2)
+    num_bboxes = len(bbox_flat)
+    width, height = image_shape
+
+    masks = torch.zeros((num_bboxes, height, width), dtype=torch.bool, device=bounding_boxes.device)
+    for i in range(num_bboxes):
+        masks[i, bbox_flat[i, 1]:bbox_flat[i, 3], bbox_flat[i, 0]:bbox_flat[i, 2]] = True
+    return masks.view(*bounding_boxes.shape[:-1], height, width).contiguous()
+
+
+def meshes_to_masks(
+    vertices: torch.Tensor,
+    faces: np.ndarray,
+    K: torch.Tensor,
+    image_shape: Tuple[int, int],
+) -> np.ndarray:
+    """Convert 3D meshes (vertices + faces) to boolean masks using convex hulling.
+
+    Args:
+        vertices: 3D mesh vertices in the camera frame (B, N, 3).
+        faces: 3D mesh faces, same over batch.
+        K: camera intrinsics, same over batch (3, 3).
+        image_shape: (image width, image_height).
+    Return:
+        masks (B, image height, image width).
+        rendered colors (B, 3, image height, image width).
+    """
+    import scipy
+
+    vertices_2d = project_points(vertices, camera_matrix=K)
+    valid_vertices = is_in_image(vertices_2d, width=image_shape[0], height=image_shape[1])
+    points = vertices_2d[valid_vertices, :].detach().cpu().numpy()
+    deln = scipy.spatial.Delaunay(points)
+
+    idx_2d = np.indices(image_shape, np.int16)
+    idx_2d = np.moveaxis(idx_2d, 0, -1)
+    deln_mask = deln.find_simplex(idx_2d)
+    return ~(deln_mask < 0).T
+
+
 def normalize_images(x: torch.Tensor, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)) -> torch.Tensor:
+    """Normalize images to given mean and standard deviation.
+
+    Args:
+        x: input images (B, 3, H, W)
+        mean: output image mean.
+        std: output image standard deviation.
+    Return:
+        batch of normalized images (B, 3, H, W).
+    """
+    if not len(x.shape) == 4:
+        raise ValueError(f"Expected batch of images, got input of shape {x.shape}")
+    if len(mean) != x.shape[1] or len(std) != x.shape[1]:
+        raise ValueError(f"Non-Matching number of channels of images with mean and standard deviation")
     batch_size = x.shape[0]
     for i in range(batch_size):
         x[i] = torchvision.transforms.functional.normalize(x[i], mean=mean, std=std)
