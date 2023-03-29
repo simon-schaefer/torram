@@ -17,13 +17,9 @@ def occupancy_grid_from_point_cloud(point_cloud: torch.Tensor, T_B_C: torch.Tens
         grid_size: number of voxels in each direction, x, y, z.
         voxel_size: size of each voxel in meters, same in each direction.
     """
-    if len(T_B_C.shape) != 4 or T_B_C.shape[-1] != 4 or T_B_C.shape[-2] != 4:
-        raise ValueError(f"Input transformation must have shape (B, M, 4, 4). Got {T_B_C.shape}")
-    if len(point_cloud.shape) != 3 or point_cloud.shape[-1] != 3:
-        raise ValueError(f"Input point cloud must have shape (B, N, 3). Got {point_cloud.shape}")
-    if T_B_C.shape[0] != point_cloud.shape[0]:
-        raise ValueError(f"Input point cloud and transformation batch size must match, "
-                         f"got {point_cloud.shape} and {T_B_C.shape}")
+    assert T_B_C.ndim == 4 and T_B_C.shape[-1] == T_B_C.shape[-2] == 4  # (B, M, 4, 4)
+    assert point_cloud.ndim == 3 and point_cloud.shape[-1] == 3  # (B, N, 3)
+    assert T_B_C.shape[0] == point_cloud.shape[0]
 
     logging.debug(f"Creating a voxel grid with size {grid_size} and voxel size {voxel_size}")
     nx = int(grid_size[0] / voxel_size)

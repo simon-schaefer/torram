@@ -1,8 +1,6 @@
 import enum
-import kornia
 import torch
 import torch.nn.functional
-import kornia.geometry.conversions
 
 from kornia.geometry import (
     convert_points_to_homogeneous,
@@ -56,10 +54,8 @@ def quaternion_to_rotation_matrix(q: torch.Tensor) -> torch.Tensor:
     Return:
         the rotation matrix of shape :math:`(..., 3, 3)`.
     """
-    if not isinstance(q, torch.Tensor):
-        raise TypeError(f"Input type is not a torch.Tensor. Got {type(q)}")
-    if not q.shape[-1] == 4:
-        raise ValueError(f"Input must be a tensor of shape (*, 4). Got {q.shape}")
+    assert isinstance(q, torch.Tensor)
+    assert q.shape[-1] == 4
 
     # normalize the input quaternion
     quaternion_norm: torch.Tensor = torch.nn.functional.normalize(q, p=2.0, dim=-1)
@@ -111,10 +107,8 @@ def quaternion_to_angle_axis(q: torch.Tensor) -> torch.Tensor:
     Return:
         angle axis rotation vector (..., 3).
     """
-    if not torch.is_tensor(q):
-        raise TypeError(f"Input type is not a torch.Tensor. Got {type(q)}")
-    if not q.shape[-1] == 4:
-        raise ValueError(f"Input must be a tensor of shape Nx4 or 4. Got {q.shape}")
+    assert isinstance(q, torch.Tensor)
+    assert q.shape[-1] == 4
 
     q1 = q[..., 0]
     q2 = q[..., 1]
@@ -151,10 +145,8 @@ def angle_axis_to_quaternion(a: torch.Tensor) -> torch.Tensor:
     Return:
         tensor with quaternion (..., 4), in XYZW order.
     """
-    if not torch.is_tensor(a):
-        raise TypeError(f"Input type is not a torch.Tensor. Got {type(a)}")
-    if not a.shape[-1] == 3:
-        raise ValueError(f"Input must be a tensor of shape Nx3 or 3. Got {a.shape}")
+    assert isinstance(a, torch.Tensor)
+    assert a.shape[-1] == 3
 
     # unpack input and compute conversion
     a0: torch.Tensor = a[..., 0:1]
@@ -191,10 +183,8 @@ def rotation_matrix_to_angle_axis(rotation_matrix: torch.Tensor, epsilon: float 
     Return:
         the rotation in axis angle representation with shape :math:`(..., 3)`.
     """
-    if not isinstance(rotation_matrix, torch.Tensor):
-        raise TypeError(f"Input type is not a torch.Tensor. Got {type(rotation_matrix)}")
-    if not rotation_matrix.shape[-2:] == (3, 3):
-        raise ValueError(f"Input size must be a (*, 3, 3) tensor. Got {rotation_matrix.shape}")
+    assert isinstance(rotation_matrix, torch.Tensor)
+    assert rotation_matrix.shape[-2:] == (3, 3)
 
     output = torch.zeros((*rotation_matrix.shape[:-2], 3), dtype=rotation_matrix.dtype, device=rotation_matrix.device)
     trace = (rotation_matrix[..., 0, 0] + rotation_matrix[..., 1, 1] + rotation_matrix[..., 2, 2]).unsqueeze(-1)
@@ -261,10 +251,8 @@ def rotation_matrix_to_quaternion(rotation_matrix: torch.Tensor, eps: float = 1e
     Return:
         the rotation in quaternion with shape :math:`(..., 4)`.
     """
-    if not isinstance(rotation_matrix, torch.Tensor):
-        raise TypeError(f"Input type is not a torch.Tensor. Got {type(rotation_matrix)}")
-    if not rotation_matrix.shape[-2:] == (3, 3):
-        raise ValueError(f"Input size must be a (*, 3, 3) tensor. Got {rotation_matrix.shape}")
+    assert isinstance(rotation_matrix, torch.Tensor)
+    assert rotation_matrix.shape[-2:] == (3, 3)
 
     def safe_zero_division(numerator: torch.Tensor, denominator: torch.Tensor) -> torch.Tensor:
         return numerator / torch.clamp(denominator, min=eps)
@@ -329,6 +317,9 @@ def rotation_6d_to_rotation_matrix(x: torch.Tensor) -> torch.Tensor:
     Returns:
         (B,N,3,3) Batch of corresponding rotation matrices
     """
+    assert isinstance(x, torch.Tensor)
+    assert x.shape[-1] == 6
+
     x_shape = x.shape
     x = x.view(-1, 3, 2)
 
@@ -359,6 +350,8 @@ def rotation_6d_to_axis_angle(x: torch.Tensor) -> torch.Tensor:
     Args:
         x: 6d rotation tensor (..., 6)
     """
+    assert isinstance(x, torch.Tensor)
+    assert x.shape[-1] == 6
     x4d = rotation_6d_to_quaternion(x)
     return quaternion_to_angle_axis(x4d)
 
@@ -373,8 +366,8 @@ def angle_axis_to_rotation_matrix(x: torch.Tensor, eps: float = 1e-6) -> torch.T
     Returns:
         rotation matrix representations of x (*, 3, 3).
     """
-    if not x.shape[-1] == 3:
-        raise ValueError(f"Input size must be a (*, 3) tensor. Got {x.shape}")
+    assert isinstance(x, torch.Tensor)
+    assert x.shape[-1] == 3
 
     def _compute_rotation_matrix(angle_axis, theta2):
         # We want to be careful to only evaluate the square root if the
@@ -426,6 +419,8 @@ def rotation_matrix_to_rotation_6d(x: torch.Tensor) -> torch.Tensor:
     """Convert rotation matrix to 6d representation.
     from https://pytorch3d.readthedocs.io/en/latest/_modules/pytorch3d/transforms/rotation_conversions.html
     """
+    assert isinstance(x, torch.Tensor)
+    assert x.shape[-2:] == (3, 3)
     batch_dim = x.size()[:-2]
     return x[..., :2].clone().reshape(batch_dim + (6,))
 
@@ -439,8 +434,8 @@ def angle_axis_to_rotation_6d(x: torch.Tensor) -> torch.Tensor:
 
 def inverse_transformation(x: torch.Tensor) -> torch.Tensor:
     """Inverse transformation tensor i.e. T_AB => T_BA."""
-    if not x.shape[-1] == x.shape[-2] == 4:
-        raise ValueError(f"Invalid shape of transformation, expected (..., 4, 4), got {x.shape}")
+    assert isinstance(x, torch.Tensor)
+    assert x.shape[-1] == x.shape[-2] == 4
 
     x_inv = torch.zeros_like(x, dtype=x.dtype, device=x.device)
     Rx_inv = torch.transpose(x[..., :3, :3], -1, -2)   # same as inverse (rotation matrix)
@@ -461,8 +456,8 @@ def inverse_quaternion(q: torch.Tensor) -> torch.Tensor:
     Args:
         q: input quaternion (..., 4), in order (x,y,z,w).
     """
-    if q.shape[-1] != 4:
-        raise ValueError(f"Invalid shape of quaternion, expected (..., 4), got {q.shape}")
+    assert isinstance(q, torch.Tensor)
+    assert q.shape[-1] == 4
     scaling = torch.tensor([-1, -1, -1, 1], device=q.device, dtype=q.dtype)
     return q * scaling
 
@@ -480,10 +475,9 @@ def multiply_angle_axis(a: torch.Tensor, b: torch.Tensor, eps: float = 1e-8) -> 
     Returns:
         Composed rotation in angle axis, a tensor of angle axes (..., 3).
     """
-    if a.shape != b.shape:
-        raise ValueError(f"Got non-matching inputs a and b, got {a.shape} and {b.shape}")
-    if a.shape[-1] != 3:
-        raise ValueError(f"Got invalid axis-angle tensor, expected (..., 3), got {a.shape}")
+    assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
+    assert a.shape == b.shape
+    assert a.shape[-1] == 3
 
     alpha_2 = torch.linalg.norm(a, dim=-1, keepdim=True) / 2
     beta_2 = torch.linalg.norm(b, dim=-1, keepdim=True) / 2
@@ -512,6 +506,10 @@ def multiply_quaternion(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
     Returns:
         The product of a and b, a tensor of quaternions shape (..., 4).
     """
+    assert isinstance(a, torch.Tensor) and isinstance(b, torch.Tensor)
+    assert a.shape == b.shape
+    assert a.shape[-1] == 4
+
     ax, ay, az, aw = torch.unbind(a, -1)
     bx, by, bz, bw = torch.unbind(b, -1)
     ow = aw * bw - ax * bx - ay * by - az * bz
@@ -590,11 +588,8 @@ def tR_to_transformation_matrix(t: torch.Tensor, R: torch.Tensor) -> torch.Tenso
 
 
 def interpolate2d(data: torch.Tensor, points: torch.Tensor, mode: str = "bilinear"):
-    if len(data.shape) != 3:
-        raise ValueError(f"Invalid shape of data, expected (C, H, W), got {data.shape}")
-    if len(points.shape) != 2 or points.shape[-1] != 2:
-        raise ValueError(f"Invalid shape of points, expected (N, 2), got {points.shape}")
-
+    assert data.ndim == 3  # (C, H, W)
+    assert points.ndim == 2 and points.shape[-1] == 2
     _, h, w = data.shape
 
     x0 = torch.floor(points).long()

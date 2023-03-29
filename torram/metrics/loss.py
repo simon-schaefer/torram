@@ -23,10 +23,9 @@ def full_nll_loss(mean: torch.Tensor, target: torch.Tensor, covariance: torch.Te
         marginalize_cov_norm: marginalize covariance normalization term for efficiency.
         reduction: loss reduction method (mean, sum).
     """
-    if mean.shape != target.shape:
-        raise ValueError(f"Non-Matching mean and target tensors, got {mean.shape} and {target.shape}")
-    if covariance.shape[:-1] != mean.shape or covariance.shape[-2] != covariance.shape[-1]:
-        raise ValueError(f"Non-Matching mean and covariance tensors, got {mean.shape} and {covariance.shape}")
+    assert mean.shape == target.shape
+    assert covariance.shape[-1] == covariance.shape[-2]
+    assert covariance.shape[:-1] == mean.shape
 
     cov_inv = torch.inverse(covariance)  # TODO: use torch.linalg.solve(covariance, error) instead .inverse(...)
     error = mean - target
@@ -68,14 +67,14 @@ def contrastive_loss(
         margin: minimal difference of the predictions to be included.
         reduction: specifies the reduction to apply to the output: 'none' | 'mean' | 'sum'.
     """
-    if y_hat.shape != anchors.shape:
-        raise ValueError(f"Non-Matching shape of y_hat and anchors, got {y_hat.shape} and {anchors.shape}")
-    if len(y_hat.shape) != 1:
-        raise ValueError(f"Expected flat input tensor, got {y_hat.shape}")
+    assert y_hat.shape == anchors.shape
+    assert y_hat.ndim == 1  # flat input tensor
+
     pairs_ij = np.array([ij for ij in itertools.combinations(list(range(len(y_hat))), 2)])
     labels_ij = [1 if anchors[i] > anchors[j] else -1 for i, j in pairs_ij]
     labels_ij = torch.tensor(labels_ij, device=anchors.device, dtype=anchors.dtype)
     is_included = [k for k, (i, j) in enumerate(pairs_ij) if abs(anchors[i] - anchors[j]) > anchor_margin]
+
     return torch.nn.functional.margin_ranking_loss(
         input1=y_hat[pairs_ij[is_included, 0]],
         input2=y_hat[pairs_ij[is_included, 1]],

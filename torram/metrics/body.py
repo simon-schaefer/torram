@@ -13,8 +13,7 @@ def mpjpe(x_hat: torch.Tensor, x: torch.Tensor, align: bool = True) -> torch.Ten
         x: ground-truth joints (..., N_joints, 3).
         align: align pelvis.
     """
-    if not x_hat.ndim == x.ndim == 3:
-        raise ValueError(f"Invalid joint shape, expected (..., N, 3), got {x.shape} and {x_hat.shape}")
+    assert x_hat.ndim == x.ndim == 3
     if align:
         x_hat_aligned = __align_by_pelvis(x_hat)
         x_aligned = __align_by_pelvis(x)

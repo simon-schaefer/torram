@@ -13,10 +13,8 @@ def euclidean_distance(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         x_hat: predicted vector (B, D).
         x: target vector (B, D).
     """
-    if not x_hat.ndim == x.ndim == 2:
-        raise ValueError(f"Invalid translation shape, expected (B, D), got {x.shape} and {x_hat.shape}")
-    if x_hat.shape != x.shape:
-        raise ValueError(f"Non matching prediction and target, got {x.shape} and {x_hat.shape}")
+    assert x_hat.ndim == x.ndim == 2  # (B, D)
+    assert x_hat.shape == x.shape
     return (x_hat - x).norm(dim=-1)
 
 
@@ -29,11 +27,9 @@ def geodesic_loss(x_hat: torch.Tensor, x: Optional[torch.Tensor] = None, eps: fl
         x: target rotation matrix (B, 3, 3). If None, no rotation is assumed (i.e. R = I).
         eps: numeric eps.
     """
-    if not x_hat.shape[-1] == x_hat.shape[-2] == 3:
-        raise ValueError(f"Invalid rotation matrix shape, expected (B, 3, 3), got {x_hat.shape}")
+    assert x_hat.shape[-1] == x_hat.shape[-2] == 3  # (B, 3, 3)
+    assert x is None or x.shape == x_hat.shape
     if x is not None:
-        if x.shape != x_hat.shape:
-            raise ValueError(f"Non matching prediction and target, got {x.shape} and {x_hat.shape}")
         R_diffs = x_hat @ x.transpose(-1, -2)  # x -> inv(x) = x.T
     else:
         R_diffs = x_hat  # no "back"-rotation

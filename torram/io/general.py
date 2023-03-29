@@ -27,8 +27,7 @@ def write_dict_to_csv(dictionary: Dict[str, Any], csv_file: str):
         dictionary: dictionary to save.
         csv_file: file to save dictionary in.
     """
-    if not csv_file.endswith(".csv"):
-        raise ValueError(f"Invalid filename for CSV file {csv_file}")
+    assert csv_file.endswith(".csv")
     with open(csv_file, 'w+') as f:
         for key, value in dictionary.items():
             space = " " * (20 - len(key))

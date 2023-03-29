@@ -17,13 +17,9 @@ def eye(shape: Union[torch.Size, Tuple[int, ...]], dtype: torch.dtype = None, de
     >>> I.shape
     (8, 2, 3, 3)
     """
-    if len(shape) == 0:
-        raise ValueError(f"Got empty shape for eye")
-    d = shape[-1]
-    output = torch.zeros((*shape[:-1], d, d), dtype=dtype, device=device, requires_grad=requires_grad)
-    for i in range(d):
-        output[..., i, i] = 1
-    return output
+    assert len(shape) > 0
+    out_diagonal = torch.ones(shape, dtype=dtype, device=device, requires_grad=requires_grad)
+    return diag_last(out_diagonal)
 
 
 def eye_like(x: torch.Tensor, requires_grad: bool = False) -> torch.Tensor:
@@ -40,8 +36,7 @@ def eye_like(x: torch.Tensor, requires_grad: bool = False) -> torch.Tensor:
     Returns:
         identity matrix similar to input matrix in shape, device and dtype.
     """
-    if len(x.shape) < 2 or x.shape[-1] != x.shape[-2]:
-        raise ValueError("Invalid input matrix, must be at least two-dimensional and square")
+    assert x.ndim >= 2 and x.shape[-1] == x.shape[-2]
     return eye(x.shape[:-1], dtype=x.dtype, device=x.device, requires_grad=requires_grad)
 
 
@@ -53,7 +48,6 @@ def diag_last(x: torch.Tensor) -> torch.Tensor:
     Returns:
         diagonal tensor with the last dimension of x as its diagonal.
     """
-    if len(x.shape) == 0:
-        raise ValueError("Cannot make a diagonal matrix with empty tensor")
+    assert x.ndim > 0
     x_eye = eye(x.shape, dtype=x.dtype, device=x.device)
     return x_eye * x.unsqueeze(-1)

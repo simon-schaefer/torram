@@ -5,21 +5,16 @@ import torram
 
 def test_acceleration_zero():
     x = torch.tensor([1, 2, 3], dtype=torch.float32).view(1, 3, 1, 1).repeat(10, 1, 25, 3)
-    x_hat = torch.ones((10, 25, 3), dtype=torch.float32) * 2
-
-    error = torram.metrics.acceleration(x_hat, x)
+    error = torram.metrics.acceleration(x)
     assert torch.allclose(error, torch.zeros(10))
 
 
 def test_acceleration_constant():
-    x = torch.tensor([1, 2, 3], dtype=torch.float32).view(1, 3, 1, 1).repeat(10, 1, 25, 3)
-    x_hat = torch.ones((10, 25, 3), dtype=torch.float32) * -1
-
-    # accel = x[:, 0] - 2 * x[:, 1] + x[:, 2]
-    # accel_hat = x[:, 0] - 2 * x_hat + x[:, 2]
-    error_gt = torch.norm(torch.tensor([-2 * (-1.0) + 2 * 2.0] * 3))
-    error = torram.metrics.acceleration(x_hat, x)
-    assert torch.allclose(error, torch.ones(10) * error_gt)  # same over all N, so average = value
+    x = torch.ones((10, 50, 3), dtype=torch.float32)
+    for k in range(10):
+        x[k] = float(k)
+    error = torram.metrics.acceleration(x)
+    assert torch.allclose(error, torch.zeros(10))
 
 
 @pytest.mark.parametrize("shape", ((1, 1, 3), (5, 3, 3)))

@@ -24,8 +24,7 @@ def read_images(image_files: List[Union[Path, str]], sort: bool = False) -> torc
     - All images have the same shape, which is the shape of the first image file.
     - When `sort` is True, the image filenames are in some kind of feasibly sortable order.
     """
-    if len(image_files) == 0:
-        raise ValueError("Got empty list of image files.")
+    assert len(image_files) > 0
     if sort:
         image_files = sorted(image_files)
 

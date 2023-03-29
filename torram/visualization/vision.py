@@ -67,14 +67,11 @@ def draw_bounding_boxes(
         images: Batch of image tensors or single image tensor of dtype uint8 with bounding boxes plotted ([M,] C, H, W).
     """
     if len(images.shape) == 3:
-        if len(boxes.shape) not in [1, 2]:
-            raise ValueError(f"Invalid shape of bounding boxes, expected (num_boxes, 4), got {boxes.shape}")
+        assert boxes.ndim in [1, 2]  # (num_boxes, 4)
         return __draw_bounding_boxes(images, boxes, labels, colors, fill, width, font, font_size)
     elif len(images.shape) == 4:
-        if len(boxes.shape) not in [2, 3]:
-            raise ValueError(f"Invalid shape of batched bounding boxes, expected (N, num_boxes, 4), got {boxes.shape}")
-        if len(images) != len(boxes):
-            raise ValueError(f"Non-Matching images and bounding boxes, got {images.shape} and {boxes.shape}")
+        assert boxes.ndim in [2, 3]  # (N, num_boxes, 4)
+        assert images.shape[0] == boxes.shape[0]
         output_images = torch.zeros_like(images)
         for k, (image, bboxes) in enumerate(zip(images, boxes)):
             output_images[k] = __draw_bounding_boxes(image, bboxes, labels, colors, fill, width, font, font_size)
@@ -101,30 +98,20 @@ def __draw_keypoints(
     """
     if keypoints.ndim == 2:
         keypoints = keypoints[None]
-    if not isinstance(image, torch.Tensor):
-        raise TypeError(f"Image must be a tensor, got {type(image)}")
-    elif image.dtype != torch.uint8:
-        raise ValueError(f"Image dtype must be uint8, got {image.dtype}")
-    elif image.dim() != 3:
-        raise ValueError("Pass individual images, not batches")
-    elif image.size()[0] != 3:
-        raise ValueError("Pass an RGB image. Other Image formats are not supported")
-    if keypoints.ndim != 3:
-        raise ValueError("Keypoints must be of shape (num_instances, K, 2)")
+    assert isinstance(image, torch.Tensor) and image.dtype == torch.uint8
+    assert image.ndim == 3
+    assert image.shape[0] == 3  # RGB image
+    assert keypoints.ndim == 3  # (num_instances, K, 2)
 
     if isinstance(colors, np.ndarray):
-        if colors.shape[-1] != 3:
-            raise ValueError(f"Invalid color shape, expected (N, K, 3), got {colors.shape}")
-        if colors.shape[:-2] != keypoints.shape[:-2]:
-            raise ValueError(f"Colors and keypoints are not matching, got {colors.shape} and {keypoints.shape}")
+        assert colors.ndim == 3
+        assert colors.shape[-1] == 3  # (N, K, 3)
+        assert colors.shape[:-2] == keypoints.shape[:-2]
     elif isinstance(colors, tuple):
-        if len(colors) != 3:
-            raise ValueError(f"Invalid color tuple, expected (R, G, B), got {colors}")
+        assert len(colors) == 3  # (R, G, B)
     elif isinstance(colors, list):
-        if any([len(color) != 3 for color in colors]):
-            raise ValueError(f"Invalid list of colors, expected list of (R, G, B) tuples, got {colors}")
-        if len(colors) != len(keypoints):
-            raise ValueError(f"Number of colors and keypoints are not matching, got {len(colors)} and {len(keypoints)}")
+        assert all([len(colors) == 3 for color in colors])  # [(R, G, B), ...]
+        assert len(colors) == len(keypoints)
 
     img_to_draw = Image.fromarray(image.permute(1, 2, 0).cpu().numpy())
     draw = ImageDraw.Draw(img_to_draw)
@@ -168,17 +155,13 @@ def draw_keypoints(
         images: Batch of image tensors or single image tensor of dtype uint8 with keypoints drawn. ([M,] C, H, W).
     """
     if len(images.shape) == 3:
-        if len(keypoints.shape) not in [2, 3]:
-            raise ValueError(f"Invalid shape of keypoints, expected (N, K, 2), got {keypoints.shape}")
+        assert keypoints.ndim in [2, 3]  # (N, K, 2)
         return __draw_keypoints(images, keypoints, colors=colors, radius=radius)
 
     elif len(images.shape) == 4:
-        if len(keypoints.shape) not in [3, 4]:
-            raise ValueError(f"Invalid shape of keypoints, expected (M, N, K, 2), got {keypoints.shape}")
-        if len(images) != len(keypoints):
-            raise ValueError(f"Non-Matching images and keypoints, got {images.shape} and {keypoints.shape}")
-        if isinstance(colors, np.ndarray) and len(colors) != len(images):
-            raise ValueError(f"Non-Matching images and colors, got {images.shape} and {colors.shape}")
+        assert keypoints.ndim in [3, 4]  # (M, N, K, 2)
+        assert images.shape[0] == keypoints.shape[0]
+        assert isinstance(colors, np.ndarray) and colors.shape[0] == images.shape[0]
         if len(keypoints.shape) == 3:
             keypoints = keypoints[:, None]
         if isinstance(colors, np.ndarray) and len(colors.shape) == 3:
@@ -213,10 +196,8 @@ def draw_reprojection(
             as list of RGB tuples (N x (R, G, B)) or numpy.array containing a RGB tuple for each keypoint(N, K, 3).
         radius: radius of drawn keypoints.
     """
-    if pc_C.ndim != 3 or pc_C.shape[-1] != 3:
-        raise ValueError(f"Point clouds have invalid shape, expected (B, N, 3), got {pc_C.shape}")
-    if K.shape != (3, 3):
-        raise ValueError(f"Intrinsics have invalid shape, expected (3, 3), got {K.shape}")
+    assert pc_C.ndim == 3 and pc_C.shape[-1] == 3  # (B, N, 3)
+    assert K.shape == (3, 3)
     K_point_cloud = K[None, :, :]
     pc_projections = kornia.geometry.project_points(pc_C, camera_matrix=K_point_cloud).long()  # int image coordinates
     return draw_keypoints(image.detach().cpu(), pc_projections, colors=colors, radius=radius)
@@ -238,12 +219,10 @@ def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores
         radius: keypoint radius.
         colormap: name of matplotlib colormap.
     """
-    if torch.any(scores < 0) or torch.any(scores > 1):
-        raise ValueError("Invalid scores, they must be in [0, 1]")
-    if len(scores.shape) != 1:
-        raise ValueError(f"Invalid scores shape, expected (N, ), got {scores.shape}")
-    if len(keypoints.shape) != 2 or len(keypoints) != len(scores):
-        raise ValueError(f"Not matching keypoint and scores, got {keypoints.shape} and {scores.shape}")
+    assert torch.all(scores >= 0) and torch.all(scores <= 1)  # [0, 1]
+    assert scores.ndim == 1  # (N, )
+    assert keypoints.ndim == 2 and keypoints.shape == (scores.shape[0], 2)
+    assert image.ndim == 3 and image.shape[0] == 3  # (3, H, W)
 
     norm = matplotlib.colors.Normalize(vmin=0, vmax=1)
     color_map = cm.ScalarMappable(norm=norm, cmap=cm.get_cmap(colormap))

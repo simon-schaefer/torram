@@ -10,13 +10,10 @@ class GaussianMixtureModel(Distribution):
     support = constraints.real
 
     def __init__(self, means: torch.Tensor, covariances: torch.Tensor, weights: torch.Tensor, validate_args=None):
-        if len(means.shape) != 2:
-            raise ValueError(f"Currently only 2D distributions are supported, i.e. (num_modes, num_dim)")
+        assert means.ndim == 2  # (num_modes, num_dim)
         self.num_modes, nd = means.shape
-        if covariances.shape != (self.num_modes, nd, nd):
-            raise ValueError(f"Invalid covariance matrix, must be {(self.num_modes, nd, nd)}, got {covariances.shape}")
-        if weights.shape != (self.num_modes, ):
-            raise ValueError(f"Invalid weights vectors, must be {(self.num_modes, )}, got {weights.shape}")
+        assert covariances.shape == (self.num_modes, nd, nd)
+        assert weights.shape == (self.num_modes, )
 
         self.num_modes = len(weights)
         self.modes = [MultivariateNormal(means[i], covariances[i]) for i in range(self.num_modes)]
@@ -32,9 +29,7 @@ class GaussianMixtureModel(Distribution):
         raise NotImplementedError
 
     def log_prob(self, value: torch.Tensor):
-        if not isinstance(value, torch.Tensor):
-            raise ValueError("The value argument to log_prob must be a Tensor")
-
+        assert isinstance(value, torch.Tensor)
         log_probs = torch.zeros((*value.shape[:-1], self.num_modes), device=value.device, dtype=value.dtype)
         for i in range(self.num_modes):
             log_probs[..., i] = self.weights[i] * self.modes[i].log_prob(value)

@@ -20,10 +20,8 @@ def acceleration_error(x_hat: torch.Tensor, x: torch.Tensor) -> torch.Tensor:
         x_hat: predicted point positions (..., T, N, 3).
         x: ground-truth point positions (..., T, N, 3).
     """
-    if x_hat.ndim < 3 or x_hat.shape[-1] != 3:
-        raise ValueError(f"Invalid prediction shape, expected (..., T, N, 3), got {x_hat.shape}")
-    if x.shape != x_hat.shape:
-        raise ValueError(f"Not matching prediction and target, got {x.shape} and {x_hat.shape}")
+    assert x_hat.ndim >= 3 and x_hat.shape[-1] == 3  # (..., T, N, 3)
+    assert x.shape == x_hat.shape
 
     accel = x[..., :-2, :, :] - 2 * x[..., 1:-1, :, :] + x[..., 2:, :, :]
     accel_hat = x_hat[..., :-2, :, :] - 2 * x_hat[..., 1:-1, :, :] + x_hat[..., 2:, :, :]
@@ -37,8 +35,7 @@ def acceleration(x: torch.Tensor) -> torch.Tensor:
     Args:
         x: point positions (..., T, N, 3).
     """
-    if x.ndim < 3 or x.shape[-1] != 3:
-        raise ValueError(f"Invalid point cloud shape, expected (..., T, N, 3), got {x.shape}")
+    assert x.ndim >= 3 and x.shape[-1] == 3  # (..., T, N, 3)
     velocities = x[..., 1:, :, :] - x[..., :-1, :, :]
     accel = velocities[..., 1:, :, :] - velocities[..., :-1, :, :]
     # average of all points N and timesteps T - 2
@@ -123,7 +120,6 @@ def __align_umeyama(model: torch.Tensor, data: torch.Tensor, align_scale: bool =
 
 
 def __check_matching_3d_point_clouds(x_hat: torch.Tensor, x: torch.Tensor):
-    if not x_hat.ndim == x.ndim == 3 or not x.shape[-1] == x_hat.shape[-1] == 3:
-        raise ValueError(f"Invalid point cloud shape, expected (B, N, 3), got {x.shape} and {x_hat.shape}")
-    if x.shape != x_hat.shape:
-        raise ValueError(f"Non matching prediction and target, got {x.shape} and {x_hat.shape}")
+    assert x_hat.ndim == x.ndim == 3  # (B, N, 3)
+    assert x.shape[-1] == x_hat.shape[-1] == 3  # (B, N, 3)
+    assert x.shape == x_hat.shape

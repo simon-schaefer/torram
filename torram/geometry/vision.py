@@ -42,8 +42,7 @@ def warp(points: torch.Tensor, warping: torch.Tensor) -> torch.Tensor:
     Returns:
         warping image coordinates (..., M, 2).
     """
-    if points.shape[-1] != 2 or points.ndim < 2:
-        raise ValueError(f"Invalid pixel coordinate shape, expected (..., M, 2), got {points.shape}")
+    assert points.ndim >= 2 and points.shape[-1] == 2
     ones = torch.ones((*points.shape[:-1], 1), dtype=points.dtype, device=points.device)
     points_h = torch.cat([points, ones], dim=-1).to(warping.dtype)
     points_warped = torch.einsum('...il,...ml->...mi', warping, points_h)
@@ -60,10 +59,9 @@ def pad(images: torch.Tensor, K: torch.Tensor, output_shape: Tuple[int, int]) ->
         K: according intrinsics (B, 3, 3).
         output_shape: padded images shape (h, w).
     """
-    if not K.shape[-1] == K.shape[-2] == 3:
-        raise ValueError(f"Invalid intrinsics shape, expected (B, 3, 3), got {K.shape}")
-    if len(output_shape) != 2 or any(x <= 0 for x in output_shape):
-        raise ValueError(f"Invalid output image shape, expected (h, w), got {output_shape}")
+    assert K.shape[-1] == K.shape[-2] == 3
+    assert len(output_shape) == 2
+    assert all(x > 0 for x in output_shape)
 
     h, w = images.shape[-2:]
     dh = output_shape[0] - h
@@ -89,14 +87,10 @@ def crop_patches(images: torch.Tensor, points: torch.Tensor, width: int, height:
     Returns:
         patches: (B, N, 2*height, 2*width).
     """
-    if images.shape[:-3] != points.shape[:-2]:
-        raise ValueError(f"Got non-matching images and points tensors, got {images.shape} and {points.shape}")
-    if len(images.shape) != 4 or images.shape[-3] != 3:
-        raise ValueError(f"Got invalid images, expected (B, 3, H, W), got {images.shape}")
-    if len(points.shape) != 3 or points.shape[-1] != 2:
-        raise ValueError(f"Got invalid pixel coordinates, expected (B, N, 2), got {points.shape}")
-    if width <= 0 or height <= 0:
-        raise ValueError(f"Got invalid width/height, expected width/height > 0")
+    assert images.ndim == 4 and images.shape[-3] == 3  # (B, 3, H, W)
+    assert points.ndim == 3 and points.shape[-1] == 2  # (B, N, 2)
+    assert images.shape[:-3] == points.shape[:-2]
+    assert width > 0 and height > 0
 
     batch_size, _, img_height, img_width = images.shape
     _, num_patches, _ = points.shape
@@ -149,15 +143,13 @@ def boxes_to_masks(bounding_boxes: torch.Tensor, image_shape: Tuple[int, int]) -
     """Convert bounding boxes to image masks with specified width and height.
 
     Args:
-        bounding_boxes: input bounding boxes (..., 4).
+        bounding_boxes: input bounding boxes (..., 4), int.
         image_shape: (width, height) of corresponding image.
     Returns:
         mask with True inside the bounding boxes, False elsewhere (..., height, width).
     """
-    if bounding_boxes.shape[-1] != 4:
-        raise ValueError(f"Invalid input bounding boxes, expected (..., 4), got {bounding_boxes.shape}")
-    if torch.is_floating_point(bounding_boxes) or torch.is_complex(bounding_boxes):
-        raise ValueError(f"Invalid input bounding boxes, expected int type, got {bounding_boxes.dtype}")
+    assert bounding_boxes.shape[-1] == 4
+    assert not (torch.is_floating_point(bounding_boxes) or torch.is_complex(bounding_boxes))  # int type
     bbox_flat = torch.flatten(bounding_boxes, end_dim=-2)
     num_bboxes = len(bbox_flat)
     width, height = image_shape
@@ -198,21 +190,23 @@ def meshes_to_masks(
     return ~(deln_mask < 0).T
 
 
-def normalize_images(x: torch.Tensor, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)) -> torch.Tensor:
+def normalize_images(
+    images: torch.Tensor,
+    mean: Tuple[float, float, float] = (0.485, 0.456, 0.406),
+    std: Tuple[float, float, float] = (0.229, 0.224, 0.225)
+) -> torch.Tensor:
     """Normalize images to given mean and standard deviation.
 
     Args:
-        x: input images (B, 3, H, W)
+        images: input images (B, 3, H, W)
         mean: output image mean.
         std: output image standard deviation.
     Return:
         batch of normalized images (B, 3, H, W).
     """
-    if not len(x.shape) == 4:
-        raise ValueError(f"Expected batch of images, got input of shape {x.shape}")
-    if len(mean) != x.shape[1] or len(std) != x.shape[1]:
-        raise ValueError(f"Non-Matching number of channels of images with mean and standard deviation")
-    batch_size = x.shape[0]
+    assert images.ndim == 4
+    assert len(mean) == len(std) == images.shape[1]
+    batch_size = images.shape[0]
     for i in range(batch_size):
-        x[i] = torchvision.transforms.functional.normalize(x[i], mean=mean, std=std)
-    return x
+        images[i] = torchvision.transforms.functional.normalize(images[i], mean=mean, std=std)
+    return images

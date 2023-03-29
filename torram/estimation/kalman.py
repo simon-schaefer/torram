@@ -38,12 +38,9 @@ def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: 
         covariance of fused distribution,
     """
     n = x_hat.shape[-1]
-    if x_hat.shape != z.shape:
-        raise ValueError(f"x and z are not matching, got {x_hat.shape} and {z.shape}")
-    if P_hat.shape != (*x_hat.shape[:-1], n, n):
-        raise ValueError(f"Process noise not matching x, expected {(*x_hat.shape[:-1], n, n)}, got {P_hat.shape}")
-    if R.shape != (*z.shape[:-1], n, n):
-        raise ValueError(f"Measurement noise not matching z, expected {(*x_hat.shape[:-1], n, n)}, got {R.shape}")
+    assert x_hat.shape == z.shape
+    assert P_hat.shape == (*x_hat.shape[:-1], n, n)
+    assert R.shape == (*z.shape[:-1], n, n)
 
     K = P_hat @ torch.inverse(P_hat + R)
     x_f = x_hat + torch.einsum('...ij, ...j->...i', K, z - x_hat)
