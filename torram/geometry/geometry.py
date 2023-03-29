@@ -25,6 +25,7 @@ __all__ = ['angle_axis_to_quaternion',
            'inverse_quaternion',
            'inverse_transformation',
            'pose_to_transformation_matrix',
+           'tR_to_transformation_matrix',
            'transform_points',
            'convert_points_to_homogeneous',
            'convert_rotation',
@@ -561,15 +562,27 @@ def pose_to_transformation_matrix(t: torch.Tensor, q: torch.Tensor) -> torch.Ten
     """Convert translation and orientation vector to 4x4 transformation matrix.
 
     Args:
-        t: translation vector [..., 3] or [3].
-        q: orientation vector in axis-angle or 6d representation.
+        t: translation vector [..., 3].
+        q: orientation vector in axis-angle, quaternion or 6d representation.
     Returns:
         transformation matrix [..., 4, 4]
     """
-    assert t.shape[:-1] == q.shape[:-1]
+    R = convert_rotation(q, target=Rotations.MATRIX)
+    return tR_to_transformation_matrix(t, R)
+
+
+def tR_to_transformation_matrix(t: torch.Tensor, R: torch.Tensor) -> torch.Tensor:
+    """Convert translation and rotation matrix to 4x4 transformation matrix.
+
+    Args:
+        t: translation vector [..., 3].
+        R: rotation matrix [..., 3, 3].
+    Returns:
+        transformation matrix [..., 4, 4]
+    """
+    assert t.shape[:-1] == R.shape[:-2]
     assert t.shape[-1] == 3
     shape = t.shape[:-1]
-    R = convert_rotation(q, target=Rotations.MATRIX)
     T34 = torch.cat([R, t[..., None]], dim=-1)
     T = torch.cat([T34, torch.zeros((*shape, 1, 4), device=t.device, dtype=t.dtype)], dim=-2)
     T[..., 3, 3] = 1
