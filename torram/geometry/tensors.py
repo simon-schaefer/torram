@@ -18,8 +18,11 @@ def eye(shape: Union[torch.Size, Tuple[int, ...]], dtype: torch.dtype = None, de
     (8, 2, 3, 3)
     """
     assert len(shape) > 0
-    out_diagonal = torch.ones(shape, dtype=dtype, device=device, requires_grad=requires_grad)
-    return diag_last(out_diagonal)
+    d = shape[-1]
+    output = torch.zeros((*shape[:-1], d, d), dtype=dtype, device=device, requires_grad=requires_grad)
+    for i in range(d):
+        output[..., i, i] = 1
+    return output
 
 
 def eye_like(x: torch.Tensor, requires_grad: bool = False) -> torch.Tensor:
