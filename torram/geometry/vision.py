@@ -1,24 +1,26 @@
+from typing import Optional, Tuple, Union
+
 import numpy as np
 import torch
 import torch.nn.functional
-import torchvision.transforms.functional
-
 from kornia.geometry import depth_to_3d, project_points
-from typing import Optional, Tuple, Union
 
-__all__ = ['depth_to_3d',
-           'crop_patches',
-           'project_points',
-           'is_in_image',
-           'box_including_2d',
-           'boxes_to_masks',
-           'meshes_to_masks',
-           'pad',
-           'normalize_images',
-           'warp']
+__all__ = [
+    "depth_to_3d",
+    "crop_patches",
+    "project_points",
+    "is_in_image",
+    "box_including_2d",
+    "boxes_to_masks",
+    "meshes_to_masks",
+    "pad",
+    "warp",
+]
 
 
-def is_in_image(pixel: torch.Tensor, width: Union[int, torch.Tensor], height: Union[int, torch.Tensor]) -> torch.Tensor:
+def is_in_image(
+    pixel: torch.Tensor, width: Union[int, torch.Tensor], height: Union[int, torch.Tensor]
+) -> torch.Tensor:
     """Check which pixels are in the image.
 
     Args:
@@ -45,12 +47,14 @@ def warp(points: torch.Tensor, warping: torch.Tensor) -> torch.Tensor:
     assert points.ndim >= 2 and points.shape[-1] == 2
     ones = torch.ones((*points.shape[:-1], 1), dtype=points.dtype, device=points.device)
     points_h = torch.cat([points, ones], dim=-1).to(warping.dtype)
-    points_warped = torch.einsum('...il,...ml->...mi', warping, points_h)
+    points_warped = torch.einsum("...il,...ml->...mi", warping, points_h)
     points_warped = points_warped[..., :2] / points_warped[..., -1, None]
     return points_warped.to(points.dtype)
 
 
-def pad(images: torch.Tensor, K: torch.Tensor, output_shape: Tuple[int, int]) -> Tuple[torch.Tensor, torch.Tensor]:
+def pad(
+    images: torch.Tensor, K: torch.Tensor, output_shape: Tuple[int, int]
+) -> Tuple[torch.Tensor, torch.Tensor]:
     """Pad images with zeros to output shape and adapt the intrinsics accordingly. Changing the image center
     does not affect the projection, therefore we just have to translate the image center accordingly.
 
@@ -75,7 +79,9 @@ def pad(images: torch.Tensor, K: torch.Tensor, output_shape: Tuple[int, int]) ->
 
 
 @torch.jit.script
-def crop_patches(images: torch.Tensor, points: torch.Tensor, width: int, height: int) -> torch.Tensor:
+def crop_patches(
+    images: torch.Tensor, points: torch.Tensor, width: int, height: int
+) -> torch.Tensor:
     """Crop patches from center coordinate with size (2*height, 2*width). If a part of the patch is
     outside the image, zero padding is used.
 
@@ -94,7 +100,11 @@ def crop_patches(images: torch.Tensor, points: torch.Tensor, width: int, height:
 
     batch_size, _, img_height, img_width = images.shape
     _, num_patches, _ = points.shape
-    patches = torch.zeros((batch_size, num_patches, 3, 2 * height, 2 * width), dtype=images.dtype, device=images.device)
+    patches = torch.zeros(
+        (batch_size, num_patches, 3, 2 * height, 2 * width),
+        dtype=images.dtype,
+        device=images.device,
+    )
     for k in range(batch_size):
         for n in range(num_patches):
             x_min = torch.clamp(points[k, n, 0] - width, 0, img_width)
@@ -111,8 +121,14 @@ def crop_patches(images: torch.Tensor, points: torch.Tensor, width: int, height:
     return patches
 
 
-def box_including_2d(points_2d: torch.Tensor, x_min: Optional[int] = None, y_min: Optional[int] = None,
-                     x_max: Optional[int] = None, y_max: Optional[int] = None, offset: int = 0) -> torch.Tensor:
+def box_including_2d(
+    points_2d: torch.Tensor,
+    x_min: Optional[int] = None,
+    y_min: Optional[int] = None,
+    x_max: Optional[int] = None,
+    y_max: Optional[int] = None,
+    offset: int = 0,
+) -> torch.Tensor:
     """Compute the smallest rectangle that is in the given bounds and includes all the 2D points.
 
     Args:
@@ -149,14 +165,16 @@ def boxes_to_masks(bounding_boxes: torch.Tensor, image_shape: Tuple[int, int]) -
         mask with True inside the bounding boxes, False elsewhere (..., height, width).
     """
     assert bounding_boxes.shape[-1] == 4
-    assert not (torch.is_floating_point(bounding_boxes) or torch.is_complex(bounding_boxes))  # int type
+    assert not (
+        torch.is_floating_point(bounding_boxes) or torch.is_complex(bounding_boxes)
+    )  # int type
     bbox_flat = torch.flatten(bounding_boxes, end_dim=-2)
     num_bboxes = len(bbox_flat)
     width, height = image_shape
 
     masks = torch.zeros((num_bboxes, height, width), dtype=torch.bool, device=bounding_boxes.device)
     for i in range(num_bboxes):
-        masks[i, bbox_flat[i, 1]:bbox_flat[i, 3], bbox_flat[i, 0]:bbox_flat[i, 2]] = True
+        masks[i, bbox_flat[i, 1] : bbox_flat[i, 3], bbox_flat[i, 0] : bbox_flat[i, 2]] = True
     return masks.view(*bounding_boxes.shape[:-1], height, width).contiguous()
 
 
@@ -188,25 +206,3 @@ def meshes_to_masks(
     idx_2d = np.moveaxis(idx_2d, 0, -1)
     deln_mask = deln.find_simplex(idx_2d)
     return ~(deln_mask < 0).T
-
-
-def normalize_images(
-    images: torch.Tensor,
-    mean: Tuple[float, float, float] = (0.485, 0.456, 0.406),
-    std: Tuple[float, float, float] = (0.229, 0.224, 0.225)
-) -> torch.Tensor:
-    """Normalize images to given mean and standard deviation.
-
-    Args:
-        images: input images (B, 3, H, W)
-        mean: output image mean.
-        std: output image standard deviation.
-    Return:
-        batch of normalized images (B, 3, H, W).
-    """
-    assert images.ndim == 4
-    assert len(mean) == len(std) == images.shape[1]
-    batch_size = images.shape[0]
-    for i in range(batch_size):
-        images[i] = torchvision.transforms.functional.normalize(images[i], mean=mean, std=std)
-    return images

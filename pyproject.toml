@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta" # If not defined, then legacy behavior can happen.
+
+[project]
+name = "torram"
+version = "1.0.0"
+description = "Machine Learning essential tools for PyTorch."
+readme = "README.md"
+
+[tool.setuptools.packages.find]
+include = ["torram*"]  # Include only the 'torram' package
+
+[tool.flake8]
+max-line-length = 100
+
+[tool.black]
+line-length = 100

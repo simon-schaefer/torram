@@ -1,20 +1,21 @@
-import matplotlib
-import numpy as np
+from typing import List, Optional, Tuple, Union
+
 import kornia
+import matplotlib
+import matplotlib.cm as cm
+import numpy as np
 import torch
 import torchvision
-
-import matplotlib.cm as cm
-from torchvision.utils import draw_segmentation_masks
 from PIL import Image, ImageDraw
-from typing import Optional, List, Tuple, Union
+from torchvision.utils import draw_segmentation_masks
 
-
-__all__ = ['draw_bounding_boxes',
-           'draw_segmentation_masks',
-           'draw_keypoints',
-           'draw_reprojection',
-           'draw_keypoints_weighted']
+__all__ = [
+    "draw_bounding_boxes",
+    "draw_segmentation_masks",
+    "draw_keypoints",
+    "draw_reprojection",
+    "draw_keypoints_weighted",
+]
 
 
 @torch.no_grad()
@@ -22,7 +23,9 @@ def __draw_bounding_boxes(
     image: torch.Tensor,
     boxes: torch.Tensor,
     labels: Optional[List[str]] = None,
-    colors: Optional[Union[List[Union[str, Tuple[int, int, int]]], str, Tuple[int, int, int]]] = None,
+    colors: Optional[
+        Union[List[Union[str, Tuple[int, int, int]]], str, Tuple[int, int, int]]
+    ] = None,
     fill: Optional[bool] = False,
     width: int = 1,
     font: Optional[str] = None,
@@ -30,7 +33,9 @@ def __draw_bounding_boxes(
 ) -> torch.Tensor:
     if len(boxes.shape) == 1:
         boxes = boxes[None]
-    return torchvision.utils.draw_bounding_boxes(image, boxes, labels, colors, fill, width, font, font_size)
+    return torchvision.utils.draw_bounding_boxes(
+        image, boxes, labels, colors, fill, width, font, font_size
+    )
 
 
 @torch.no_grad()
@@ -38,7 +43,9 @@ def draw_bounding_boxes(
     images: torch.Tensor,
     boxes: torch.Tensor,
     labels: Optional[List[str]] = None,
-    colors: Optional[Union[List[Union[str, Tuple[int, int, int]]], str, Tuple[int, int, int]]] = None,
+    colors: Optional[
+        Union[List[Union[str, Tuple[int, int, int]]], str, Tuple[int, int, int]]
+    ] = None,
     fill: Optional[bool] = False,
     width: int = 1,
     font: Optional[str] = None,
@@ -74,7 +81,9 @@ def draw_bounding_boxes(
         assert images.shape[0] == boxes.shape[0]
         output_images = torch.zeros_like(images)
         for k, (image, bboxes) in enumerate(zip(images, boxes)):
-            output_images[k] = __draw_bounding_boxes(image, bboxes, labels, colors, fill, width, font, font_size)
+            output_images[k] = __draw_bounding_boxes(
+                image, bboxes, labels, colors, fill, width, font, font_size
+            )
         return output_images
     else:
         raise ValueError(f"Got neither batch nor single image, got {images.shape}")
@@ -138,7 +147,7 @@ def draw_keypoints(
     images: torch.Tensor,
     keypoints: torch.Tensor,
     colors: Union[str, Tuple[int, int, int], np.ndarray, List[Tuple[int, int, int]]] = "red",
-    radius: int = 2
+    radius: int = 2,
 ) -> torch.Tensor:
     """
     Draws key-points on a given batch of images or a single image.
@@ -184,7 +193,7 @@ def draw_reprojection(
     pc_C: torch.Tensor,
     K: torch.Tensor,
     colors: Union[str, Tuple[int, int, int], np.ndarray, List[Tuple[int, int, int]]] = "red",
-    radius: int = 2
+    radius: int = 2,
 ) -> torch.Tensor:
     """Re-Project a point cloud in the camera frame to the image plane and draw the points.
 
@@ -199,13 +208,20 @@ def draw_reprojection(
     assert pc_C.ndim == 3 and pc_C.shape[-1] == 3  # (B, N, 3)
     assert K.shape == (3, 3)
     K_point_cloud = K[None, :, :]
-    pc_projections = kornia.geometry.project_points(pc_C, camera_matrix=K_point_cloud).long()  # int image coordinates
+    pc_projections = kornia.geometry.project_points(
+        pc_C, camera_matrix=K_point_cloud
+    ).long()  # int image coordinates
     return draw_keypoints(image.detach().cpu(), pc_projections, colors=colors, radius=radius)
 
 
 @torch.no_grad()
-def draw_keypoints_weighted(image: torch.Tensor, keypoints: torch.Tensor, scores: torch.Tensor, radius: int = 1,
-                            colormap: str = "rainbow") -> torch.Tensor:
+def draw_keypoints_weighted(
+    image: torch.Tensor,
+    keypoints: torch.Tensor,
+    scores: torch.Tensor,
+    radius: int = 1,
+    colormap: str = "rainbow",
+) -> torch.Tensor:
     """Draw keypoints in image colored by their scoring (0 <= score <= 1).
 
     By default, this function uses the matplotlib colormap 'rainbow', ranging from blue for low values to

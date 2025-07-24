@@ -1,17 +1,19 @@
-import torch
-import torram
-
-from torch.distributions import Distribution, Normal, MultivariateNormal
 from typing import Tuple
 
-__all__ = [
-    'kalman_update',
-    'kalman_update_with_distributions'
-]
+import torch
+from jaxtyping import Float
+from torch.distributions import MultivariateNormal
+
+__all__ = ["kalman_update", "kalman_update_mvn"]
 
 
-def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: torch.Tensor
-                  ) -> Tuple[torch.Tensor, torch.Tensor]:
+def kalman_update(
+    x_hat: Float[torch.Tensor, "B N"],
+    z: Float[torch.Tensor, "B N"],
+    P_hat: Float[torch.Tensor, "B N N"],
+    R: Float[torch.Tensor, "B N N"],
+    check_positive_definite: bool = True,
+) -> Tuple[Float[torch.Tensor, "B N"], Float[torch.Tensor, "B N"]]:
     """Kalman update equations for merging predictions from the process model (x) and measurement (z).
 
     This implementation assumes that the output of the process model (x) and the measurement (z) are describing
@@ -37,35 +39,22 @@ def kalman_update(x_hat: torch.Tensor, z: torch.Tensor, P_hat: torch.Tensor, R: 
         mean of fused distribution.
         covariance of fused distribution,
     """
+    if check_positive_definite:
+        assert torch.all(torch.real(torch.linalg.eig(P_hat).eigenvalues) > 0)
+        assert torch.all(torch.real(torch.linalg.eig(R).eigenvalues) > 0)
+
     n = x_hat.shape[-1]
-    assert x_hat.shape == z.shape
-    assert P_hat.shape == (*x_hat.shape[:-1], n, n)
-    assert R.shape == (*z.shape[:-1], n, n)
+    eye = torch.eye(n, device=x_hat.device, dtype=x_hat.dtype)
 
     K = P_hat @ torch.inverse(P_hat + R)
-    x_f = x_hat + torch.einsum('...ij, ...j->...i', K, z - x_hat)
-    eye = torch.eye(n, device=K.device, dtype=K.dtype)
+    x_f = x_hat + torch.einsum("...ij, ...j->...i", K, z - x_hat)
     P_f = (eye - K) @ P_hat @ (eye - K).transpose(-1, -2) + K @ R @ K.transpose(-1, -2)
 
-    assert torch.all(torch.real(torch.linalg.eig(P_f).eigenvalues) > 0)  # ensure positive definiteness
     P_f = 0.5 * (P_f + P_f.transpose(-1, -2))  # ensure symmetry
     assert torch.allclose(P_f, P_f.transpose(-1, -2))
     return x_f, P_f
 
 
-def kalman_update_with_distributions(x: Distribution, z: Distribution) -> MultivariateNormal:
-    def get_covariance_matrix(d: Distribution):
-        if isinstance(d, Normal):
-            out = torram.geometry.diag_last(d.variance)
-        elif isinstance(d, MultivariateNormal):
-            out = d.covariance_matrix
-        else:
-            raise NotImplementedError(f"Covariance retrieval not implemented for distribution type {type(d)}")
-        return out
-
-    P_hat = get_covariance_matrix(x)
-    R = get_covariance_matrix(z)
-    assert torch.all(torch.real(torch.linalg.eig(P_hat).eigenvalues) > 0)  # ensure positive definiteness
-    assert torch.all(torch.real(torch.linalg.eig(R).eigenvalues) > 0)
-    x_f, P_f = kalman_update(x.mean, z.mean, P_hat=P_hat, R=R)
+def kalman_update_mvn(x: MultivariateNormal, z: MultivariateNormal) -> MultivariateNormal:
+    x_f, P_f = kalman_update(x.mean, z.mean, P_hat=x.covariance_matrix, R=z.covariance_matrix)
     return MultivariateNormal(loc=x_f, covariance_matrix=P_f)
