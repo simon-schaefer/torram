@@ -38,17 +38,17 @@ class DataConfig:
 
 
 class TrainingConfig(Protocol):
-    dataset: DataConfig
+    data: DataConfig
     optimizer: OptimizerConfig
     logging: LoggingConfig
 
 
 class TrainerSchema(Protocol):
 
-    def __init__(self, config: TrainingConfig):
+    def __init__(self, config: Any):
         raise NotImplementedError
 
-    def get_optimizer(self, model: torch.nn.Module) -> torch.optim.Optimizer:
+    def get_optimizer(self) -> torch.optim.Optimizer:
         raise NotImplementedError
 
     def compute_loss(self, batch: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
@@ -86,12 +86,12 @@ class TrainerSchema(Protocol):
 
 class DatasetSchema(Protocol):
 
-    def __init__(self, config: DataConfig):
+    def __init__(self, config: Any):
         raise NotImplementedError
 
 
 def train(
-    config_schema: TrainingConfig,
+    config_schema: Type[TrainingConfig],
     trainer_class: Type[TrainerSchema],
     dataset_class: Type[DatasetSchema],
 ) -> None:
@@ -120,23 +120,26 @@ def train(
         config_dict = cast(dict, config_dict)
         wandb.init(project=config.logging.log_project, config=config_dict)
 
-    # Setup dataset, dataloader, and optimizer.
-    dataset = dataset_class(config.dataset)
-    dataset_train, dataset_test = train_test_split(dataset, test_ratio=config.dataset.test_split)
+    # Setup dataset and dataloader.
+    dataset = dataset_class(getattr(config, "dataset", None))
+    dataset_train, dataset_test = train_test_split(dataset, test_ratio=config.data.test_split)
     dataloader_train = DataLoader(
         dataset_train,
-        num_workers=config.dataset.num_workers,
-        batch_size=config.dataset.batch_size,
+        num_workers=config.data.num_workers,
+        batch_size=config.data.batch_size,
         shuffle=True,
     )
     dataloader_test = DataLoader(
         dataset_test,
-        num_workers=config.dataset.num_workers,
-        batch_size=config.dataset.batch_size,
+        num_workers=config.data.num_workers,
+        batch_size=config.data.batch_size,
         shuffle=False,
     )
-    optimizer = torch.optim.Adam(trainer.parameters(), lr=config.optimizer.lr)
 
+    # Setup the optimizer.
+    optimizer = trainer.get_optimizer()
+
+    # Print the number of trainable and total parameters in the model.
     num_params = sum(p.numel() for p in trainer.parameters())
     num_params_trainable = sum(p.numel() for p in trainer.parameters() if p.requires_grad)
     logger.info(f"Model has {num_params} parameters, {num_params_trainable} trainable.")
