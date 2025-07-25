@@ -7,6 +7,7 @@ name = "torram"
 version = "1.0.0"
 description = "Machine Learning essential tools for PyTorch."
 readme = "README.md"
+license = {text = "MIT License"}
 
 [tool.setuptools.packages.find]
 include = ["torram*"]  # Include only the 'torram' package
