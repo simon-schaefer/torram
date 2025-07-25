@@ -1,4 +1,4 @@
-from typing import Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import torch
 from jaxtyping import Num
@@ -53,3 +53,11 @@ def diag_last(x: Num[torch.Tensor, "... N"]) -> Num[torch.Tensor, "... N N"]:
     assert x.ndim > 0
     x_eye = eye(x.shape, dtype=x.dtype, device=x.device)
     return x_eye * x.unsqueeze(-1)
+
+
+def to_device(*args, device: torch.device) -> List[torch.Tensor]:
+    return [arg.to(device) if isinstance(arg, torch.Tensor) else arg for arg in args]
+
+
+def to_device_dict(d: dict, device: torch.device) -> dict:
+    return {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in d.items()}

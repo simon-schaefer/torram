@@ -6,16 +6,8 @@ import matplotlib.cm as cm
 import numpy as np
 import torch
 import torchvision
+from jaxtyping import UInt8
 from PIL import Image, ImageDraw
-from torchvision.utils import draw_segmentation_masks
-
-__all__ = [
-    "draw_bounding_boxes",
-    "draw_segmentation_masks",
-    "draw_keypoints",
-    "draw_reprojection",
-    "draw_keypoints_weighted",
-]
 
 
 @torch.no_grad()
@@ -246,3 +238,27 @@ def draw_keypoints_weighted(
         color_k = color_map.to_rgba(float(score_k), bytes=True)[:3]  # RGBA -> RGB
         image = draw_keypoints(image, keypoint_k[None, None], colors=color_k, radius=radius)
     return image
+
+
+def make_video_grid(
+    videos: UInt8[np.ndarray, "B N C H W"], grid_size: int
+) -> UInt8[np.ndarray, "N C Hout Wout"]:
+    """Creates a grid of videos.
+
+    @param videos: Videos as a numpy array of shape (B, N, C, H, W).
+    @param grid_size: Width of the grid to arrange videos.
+    @return: A single video frame with all videos arranged in a grid.
+    """
+    B, N, C, H, W = videos.shape
+    grid_width = min(grid_size, B)
+    grid_height = (B + grid_size - 1) // grid_size
+
+    grid_video = np.zeros((N, C, H * grid_height, W * grid_width), dtype=videos.dtype)
+    for i in range(B):
+        row = i // grid_width
+        col = i % grid_width
+        start_h = row * H
+        start_w = col * W
+        grid_video[:, :, start_h : start_h + H, start_w : start_w + W] = videos[i]
+
+    return grid_video
