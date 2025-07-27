@@ -24,9 +24,8 @@ class OptimizerConfig:
 
 @dataclass
 class LoggingConfig:
-    num_vis_iters: int
-    num_ckpt_iters: int
-    num_test_iters: int
+    num_ckpt_iterations: int
+    num_test_iterations: int
     log_project: str
 
 
@@ -170,17 +169,8 @@ def train(
                 step=global_step,
             )
 
-            if global_step % config.logging.num_vis_iters == 0:
+            if global_step % config.logging.num_test_iterations == 0:
                 logger.info(f"Epoch {epoch}, Step {global_step}, Train Loss: {loss.item()}")
-                trainer.eval()
-
-                vis_logs = trainer.visualize(batch, n=4)
-                if len(vis_logs) > 0:
-                    wandb.log(vis_logs, step=global_step)
-
-                trainer.train()
-
-            if global_step % config.logging.num_test_iters == 0:
                 trainer.eval()
 
                 metrics_train_dict = trainer.evaluate(batch)
@@ -216,7 +206,7 @@ def train(
                 )
                 trainer.train()
 
-            if global_step % config.logging.num_ckpt_iters == 0 and not args.disable_wandb:
+            if global_step % config.logging.num_ckpt_iterations == 0 and not args.disable_wandb:
                 assert wandb.run is not None, "WandB run must be initialized to save checkpoints."
                 logger.info(f"Saving checkpoint at step {global_step}")
                 state = {
