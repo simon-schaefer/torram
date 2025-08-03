@@ -156,9 +156,9 @@ def draw_skeleton(
     vertices = np.ones((num_edges * 4, 3), dtype="f4")
     for i, (start, end) in enumerate(kintree):
         vertices[i * 4 + 0] = joints[start]
-        vertices[i * 4 + 1] = colors[start]
+        vertices[i * 4 + 1] = colors[i]
         vertices[i * 4 + 2] = joints[end]
-        vertices[i * 4 + 3] = colors[end]
+        vertices[i * 4 + 3] = colors[i]
     vertices = vertices.flatten()
 
     vbo = ctx.buffer(vertices.tobytes())
