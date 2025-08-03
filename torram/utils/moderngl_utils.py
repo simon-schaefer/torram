@@ -1,6 +1,6 @@
 import platform
 from functools import partial
-from typing import Callable, Literal, Optional, Tuple, Union
+from typing import Callable, List, Literal, Optional, Tuple, Union
 
 import moderngl
 import numpy as np
@@ -90,35 +90,75 @@ def draw_smpl_skeleton(ctx: moderngl.Context, prog, joints: Float[np.ndarray, "N
     @param joints: An array of shape (N, 3) representing the joint positions.
     """
 
-    SMPL_KINTREE_TABLE_COLORED = [
-        (0, 1, [0.8, 0.3, 0.3]),  # pelvis -> left_hip
-        (0, 2, [0.3, 0.3, 0.8]),  # pelvis -> right_hip
-        (0, 3, [0.5, 0.5, 0.5]),  # pelvis -> spine1
-        (1, 4, [0.8, 0.3, 0.3]),  # left_hip -> left_knee
-        (2, 5, [0.3, 0.3, 0.8]),  # right_hip -> right_knee
-        (3, 6, [0.5, 0.5, 0.5]),  # spine1 -> spine2
-        (4, 7, [0.8, 0.3, 0.3]),  # left_knee -> left_ankle
-        (5, 8, [0.3, 0.3, 0.8]),  # right_knee -> right_ankle
-        (6, 9, [0.5, 0.5, 0.5]),  # spine2 -> spine3
-        (7, 10, [0.8, 0.3, 0.3]),  # left_ankle -> left_foot
-        (8, 11, [0.3, 0.3, 0.8]),  # right_ankle -> right_foot
-        (9, 12, [0.5, 0.5, 0.5]),  # spine3 -> neck
-        (12, 15, [0.3, 0.3, 0.8]),  # neck -> right_shoulder
-        (12, 17, [0.8, 0.3, 0.3]),  # left_shoulder -> left_elbow
-        (12, 16, [0.3, 0.3, 0.8]),  # right_shoulder -> right_elbow
-        (16, 18, [0.8, 0.3, 0.3]),  # left_elbow -> left_wrist
-        (17, 19, [0.3, 0.3, 0.8]),  # right_elbow -> right_wrist
-        (18, 20, [0.8, 0.3, 0.3]),  # left_wrist -> left_hand
-        (19, 21, [0.3, 0.3, 0.8]),  # right_wrist -> right_hand
+    SMPL_KINTREE = [
+        (0, 1),  # pelvis -> left_hip
+        (0, 2),  # pelvis -> right_hip
+        (0, 3),  # pelvis -> spine1
+        (1, 4),  # left_hip -> left_knee
+        (2, 5),  # right_hip -> right_knee
+        (3, 6),  # spine1 -> spine2
+        (4, 7),  # left_knee -> left_ankle
+        (5, 8),  # right_knee -> right_ankle
+        (6, 9),  # spine2 -> spine3
+        (7, 10),  # left_ankle -> left_foot
+        (8, 11),  # right_ankle -> right_foot
+        (9, 12),  # spine3 -> neck
+        (12, 15),  # neck -> right_shoulder
+        (12, 17),  # neck -> left_shoulder
+        (12, 16),  # right_shoulder -> right_elbow
+        (16, 18),  # left_elbow -> left_wrist
+        (17, 19),  # right_elbow -> right_wrist
+        (18, 20),  # left_wrist -> left_hand
+        (19, 21),  # right_wrist -> right_hand
     ]
-    num_edges = len(SMPL_KINTREE_TABLE_COLORED)
+
+    SMPL_COLORS = [
+        (0.8, 0.3, 0.3),  # Red for left side
+        (0.3, 0.3, 0.8),  # Blue for right side
+        (0.5, 0.5, 0.5),  # Gray for spine
+        (0.8, 0.3, 0.3),  # Red for left side
+        (0.3, 0.3, 0.8),  # Blue for right side
+        (0.5, 0.5, 0.5),  # Gray for spine
+        (0.8, 0.3, 0.3),  # Red for left side
+        (0.3, 0.3, 0.8),  # Blue for right side
+        (0.5, 0.5, 0.5),  # Gray for spine
+        (0.8, 0.3, 0.3),  # Red for left side
+        (0.3, 0.3, 0.8),  # Blue for right side
+        (0.5, 0.5, 0.5),  # Gray for spine
+        (0.3, 0.3, 0.8),  # Blue for right shoulder
+        (0.8, 0.3, 0.3),  # Red for left shoulder
+        (0.3, 0.3, 0.8),  # Blue for right elbow
+        (0.8, 0.3, 0.3),  # Red for left elbow
+        (0.3, 0.3, 0.8),  # Blue for right wrist
+    ]
+
+    draw_skeleton(ctx, prog, joints, SMPL_KINTREE, SMPL_COLORS)
+
+
+def draw_skeleton(
+    ctx: moderngl.Context,
+    prog,
+    joints: Float[np.ndarray, "N 3"],
+    kintree: List[Tuple[int, int]],
+    colors: List[Tuple[float, float, float]],
+):
+    """Draws a skeleton from joint positions and a kinematic tree.
+
+    @param ctx: The moderngl context to use for rendering.
+    @param prog: The shader program to use for rendering.
+    @param joints: An array of shape (N, 3) representing the joint positions.
+    @param kintree: A list of tuples representing the kinematic tree edges.
+    @param colors: A list of RGB tuples representing the colors for each edge.
+    """
+    assert len(kintree) == len(colors), "Kinematic tree and colors must have the same length"
+    num_edges = len(kintree)
 
     vertices = np.ones((num_edges * 4, 3), dtype="f4")
-    for i, (start, end, color) in enumerate(SMPL_KINTREE_TABLE_COLORED):
+    for i, (start, end) in enumerate(kintree):
         vertices[i * 4 + 0] = joints[start]
-        vertices[i * 4 + 1] = color
+        vertices[i * 4 + 1] = colors[start]
         vertices[i * 4 + 2] = joints[end]
-        vertices[i * 4 + 3] = color
+        vertices[i * 4 + 3] = colors[end]
     vertices = vertices.flatten()
 
     vbo = ctx.buffer(vertices.tobytes())
