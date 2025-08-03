@@ -101,7 +101,11 @@ def train(
     args, args_unknown = parser.parse_known_args()
 
     logger = logging.getLogger(__name__)
-    logging.basicConfig(level=logging.INFO if not args.debug else logging.DEBUG)
+    logging.basicConfig(
+        level=logging.INFO if not args.debug else logging.DEBUG,
+        format="[%(asctime)s %(levelname)s %(filename)s:%(lineno)d] %(message)s",
+        datefmt="%H:%M:%S",
+    )
     config = read_config(args.config, config_schema, args_unknown)
     config = cast(TrainingConfig, config)
     logger.info(f"Using config: \n{OmegaConf.to_yaml(config)}")
