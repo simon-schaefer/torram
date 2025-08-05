@@ -105,6 +105,7 @@ def train(
         level=logging.INFO if not args.debug else logging.DEBUG,
         format="[%(asctime)s %(levelname)s %(filename)s:%(lineno)d] %(message)s",
         datefmt="%H:%M:%S",
+        force=True,
     )
     config = read_config(args.config, config_schema, args_unknown)
     config = cast(TrainingConfig, config)
@@ -219,7 +220,9 @@ def train(
                     "epoch": epoch,
                     "global_step": global_step,
                 }
-                torch.save(state, os.path.join(wandb.run.dir, f"checkpoint_{global_step}.pt"))
+                checkpoint_path = os.path.join(wandb.run.dir, f"checkpoint_{global_step}.pt")
+                torch.save(state, checkpoint_path)
+                wandb.save(checkpoint_path)
 
         avg_loss = total_loss / len(dataloader_train)
         wandb.log({"training/epoch": epoch, "loss/train/epoch": avg_loss}, step=global_step)
