@@ -219,6 +219,7 @@ def train(
                     "optimizer": optimizer.state_dict(),
                     "epoch": epoch,
                     "global_step": global_step,
+                    "config": OmegaConf.to_container(config, resolve=True),
                 }
                 checkpoint_path = os.path.join(wandb.run.dir, f"checkpoint_{global_step}.pt")
                 torch.save(state, checkpoint_path)
