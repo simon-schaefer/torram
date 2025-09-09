@@ -20,6 +20,7 @@ def draw_keypoints(
     colormap_name: str = "viridis",
 ) -> Int[npt.NDArray[np.uint8], "H W 3"]:
     N = keypoints.shape[0]
+    E = len(edges) if edges is not None else 0
     if mask is None:
         mask = np.ones((N,), dtype=bool)
 
