@@ -183,8 +183,12 @@ def train(
 
                 loss_val_dict = defaultdict(float)
                 metrics_val_dict = defaultdict(float)
+                vis_test = {}
                 for batch in dataloader_test:
                     batch = to_device_dict(batch, device=device)
+                    if len(vis_test) < 4:
+                        vis_batch = trainer.visualize(batch, n=4 - len(vis_test))
+                        vis_test.update(vis_batch)
 
                     loss_dict = trainer.compute_loss(batch)
                     loss = sum(loss_dict.values())
@@ -206,6 +210,7 @@ def train(
                         **{f"metrics/val/{k}": v for k, v in metrics_val_dict.items()},
                         **{f"loss/val/{k}": v for k, v in loss_val_dict.items()},
                         **{f"visualization/train/{k}": v for k, v in vis_train.items()},
+                        **{f"visualization/val/{k}": v for k, v in vis_test.items()},
                     },
                     step=global_step,
                 )
