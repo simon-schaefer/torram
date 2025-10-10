@@ -154,6 +154,7 @@ def train(
     for epoch in range(config.optimizer.num_epochs):
         total_loss = 0.0
         for batch in dataloader_train:
+            logger.debug(f"Training step {global_step}")
             batch = to_device_dict(batch, device=device)
             loss_dict = trainer.compute_loss(batch)
             loss = sum(loss_dict.values())
@@ -173,6 +174,8 @@ def train(
                 },
                 step=global_step,
             )
+            loss_log_dict = {k: round(v.item(), 4) for k, v in loss_dict.items()}
+            logger.debug(f"Loss dict: {loss_log_dict}")
 
             if global_step % config.logging.num_test_iterations == 0:
                 logger.info(f"Epoch {epoch}, Step {global_step}, Train Loss: {loss.item()}")
