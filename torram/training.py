@@ -93,6 +93,7 @@ def train(
     config_schema: Type[TrainingConfig],
     trainer_class: Type[TrainerSchema],
     dataset_class: Type[DatasetSchema],
+    device: torch.device | str | None = None,
 ) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", nargs="+")
@@ -112,7 +113,10 @@ def train(
     logger.info(f"Using config: \n{OmegaConf.to_yaml(config)}")
 
     # Initialize the trainer/model and its default config parameters based on the model type.
-    device = torch.device("cuda" if torch.cuda.is_available() else "mps")
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    elif isinstance(device, str):
+        device = torch.device(device)
     trainer = trainer_class(config)
     trainer.to(device)
 
