@@ -58,7 +58,7 @@ def log_trimesh(
     if mesh.visual is not None and mesh.visual.kind != "vertex":
         vertex_colors = mesh.visual.vertex_colors
         vertex_colors = vertex_colors[:, :3] if vertex_colors is not None else None
-    else;
+    else:
         vertex_colors = None
 
     rr.log(
