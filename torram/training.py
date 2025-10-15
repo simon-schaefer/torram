@@ -217,7 +217,8 @@ def train(
                         vis_batch = trainer.visualize(batch, n=4 - len(vis_test))
                         vis_test.update(vis_batch)
 
-                    loss_dict = trainer.compute_loss(batch)
+                    with torch.no_grad():
+                        loss_dict = trainer.compute_loss(batch)
                     loss = sum(loss_dict.values())
                     loss = cast(torch.Tensor, loss)
                     for k, v in loss_dict.items():
