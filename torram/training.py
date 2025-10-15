@@ -211,10 +211,10 @@ def train(
                 loss_val_dict = defaultdict(float)
                 metrics_val_dict = defaultdict(float)
                 vis_test = {}
-                for batch in dataloader_test:
+                for bi, batch in enumerate(dataloader_test):
                     batch = to_device_dict(batch, device=device)
-                    if len(vis_test) < 4:
-                        vis_batch = trainer.visualize(batch, n=4 - len(vis_test))
+                    if bi == 0:
+                        vis_batch = trainer.visualize(batch, n=4)
                         vis_test.update(vis_batch)
 
                     with torch.no_grad():
