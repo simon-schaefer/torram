@@ -13,6 +13,7 @@ from torch.utils.data import DataLoader
 from torram.utils.config import read_config
 from torram.utils.dataset_utils import train_test_split
 from torram.utils.ops import to_device_dict
+from torram.utils.wandb_utils import load_checkpoint_from_wandb
 
 
 @dataclass
@@ -78,6 +79,10 @@ class TrainerSchema(Protocol):
         """Return the model state dictionary."""
         raise NotImplementedError
 
+    def load_state_dict(self, state_dict: Dict[str, Any]):
+        """Load the model state dictionary."""
+        raise NotImplementedError
+
     def to(self, device: torch.device):
         """Move the model to the specified device."""
         raise NotImplementedError
@@ -98,6 +103,12 @@ def train(
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", nargs="+")
     parser.add_argument("--disable-wandb", action="store_true", help="Disable W&B logging.")
+    parser.add_argument(
+        "--checkpoint",
+        type=str,
+        default=None,
+        help="Path to a checkpoint to resume training.",
+    )
     parser.add_argument("--debug", action="store_true")
     args, args_unknown = parser.parse_known_args()
 
@@ -143,9 +154,19 @@ def train(
         batch_size=config.data.batch_size,
         shuffle=False,
     )
+    logger.info(f"Training samples: {len(dataset_train)}, Testing samples: {len(dataset_test)}")
 
     # Setup the optimizer.
     optimizer = trainer.get_optimizer()
+
+    # If a checkpoint is provided, load it.
+    global_step = 0
+    if args.checkpoint is not None:
+        checkpoint = load_checkpoint_from_wandb(args.checkpoint, device=device)
+        trainer.load_state_dict(checkpoint["model"])
+        optimizer.load_state_dict(checkpoint["optimizer"])
+        global_step = checkpoint.get("global_step", 0)
+        logger.info(f"Loaded checkpoint from {args.checkpoint}")
 
     # Print the number of trainable and total parameters in the model.
     num_params = sum(p.numel() for p in trainer.parameters())
@@ -154,7 +175,6 @@ def train(
 
     # Run the training loop.
     trainer.train()
-    global_step = 0
     for epoch in range(config.optimizer.num_epochs):
         total_loss = 0.0
         for batch in dataloader_train:

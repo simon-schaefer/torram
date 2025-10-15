@@ -45,13 +45,14 @@ def load_checkpoint_from_wandb(
     logger.info(f"Loading checkpoint from W&B run: {latest_checkpoint.name}")
 
     # Download the checkpoint file to the specified directory.
+    download_dir = download_dir / wandb_path.replace("/", "_")
     if not download_dir.exists():
         download_dir.mkdir(parents=True, exist_ok=True)
     download_path = download_dir.as_posix()
 
     cache_file = latest_checkpoint.download(root=download_path, replace=replace, exist_ok=True)
     cache_file_name = cache_file.name
-    logger.debug(f"Checkpoint downloaded to: {cache_file_name}")
+    logger.info(f"Checkpoint downloaded to: {cache_file_name}")
 
     # Load the checkpoint file.
     return torch.load(cache_file_name, map_location=device)

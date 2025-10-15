@@ -1,10 +1,25 @@
 import argparse
+import logging
 from pathlib import Path
 from typing import Any, List, Optional, Tuple
 
 from omegaconf import DictConfig, ListConfig, OmegaConf
 
 OmegaConfigType = DictConfig | ListConfig
+
+
+def setup_logging_config(debug: bool, log_level_non_debug=logging.INFO) -> None:
+    """Set up logging configuration.
+
+    @param debug: If True, set logging level to DEBUG, else to log_level_non_debug.
+    @param log_level_non_debug: Logging level when debug is False.
+    """
+    log_level = logging.DEBUG if debug else log_level_non_debug
+    logging.basicConfig(
+        level=log_level,
+        format="[%(asctime)s - %(levelname)s] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
 
 
 def load_config_from_files_and_cli(schema: Any) -> Tuple[Any, bool]:
