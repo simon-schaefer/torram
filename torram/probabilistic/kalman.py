@@ -30,14 +30,13 @@ def kalman_update(
     numerical errors (following the description of
     https://www.cs.cmu.edu/~motionplanning/papers/sbpx_%7Bk%7Ck-1%7D_papers/kalman/kleeman_understanding_kalman.pdf).
 
-    Args:
-        x_hat: prediction from process model at time k (x_k|k-1).
-        z: measurement at time k (z_k).
-        P_hat: process model covariance (P_k|k-1, A*P*A_T + Q in linear case).
-        R: measurement covariance (R_k).
-    Returns:
-        mean of fused distribution.
-        covariance of fused distribution,
+    @param x_hat: prediction from process model at time k (x_k|k-1).
+    @param z: measurement at time k (z_k).
+    @param P_hat: process model covariance (P_k|k-1, A*P*A_T + Q in linear case).
+    @param R: measurement covariance (R_k).
+
+    @returns mean of fused distribution.
+    @returns covariance of fused distribution,
     """
     if check_positive_definite:
         assert torch.all(torch.real(torch.linalg.eig(P_hat).eigenvalues) > 0)

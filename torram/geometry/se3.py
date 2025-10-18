@@ -17,10 +17,9 @@ def geodesic_distance(
     """Geodesic loss function as difference of rotations.
     https://github.com/airalcorn2/pytorch-geodesic-loss/blob/master/geodesic_loss.py
 
-    Args:
-        x_hat: predicted rotation matrix (B, 3, 3).
-        x: target rotation matrix (B, 3, 3). If None, no rotation is assumed (i.e. R = I).
-        eps: numeric eps.
+    @param x_hat: predicted rotation matrix (B, 3, 3).
+    @param x: target rotation matrix (B, 3, 3). If None, no rotation is assumed (i.e. R = I).
+    @param eps: numeric eps.
     """
     if R is not None:
         R_diffs = R_hat @ R.transpose(-1, -2)  # x -> inv(x) = x.T
@@ -35,17 +34,15 @@ def invert_homogeneous_transforms(
 ) -> Float[torch.Tensor, "... 4 4"]:
     """Invert homogeneous transformation matrices.
 
-    Args:
-        T: homogeneous transformation matrices (..., 4, 4).
-
-    Returns:
-        T_inv: inverted homogeneous transformation matrices (..., 4, 4).
+    @param T: homogeneous transformation matrices (..., 4, 4).
+    @returns inverted homogeneous transformation matrices (..., 4, 4).
     """
     R = T[..., :3, :3]
     t = T[..., :3, 3:]
+
+    T_inv = torch.eye(4, device=T.device, dtype=T.dtype).repeat(*T.shape[:-2], 1, 1).clone()
     R_inv = R.transpose(-1, -2)
-    t_inv = -R_inv @ t
-    T_inv = torch.eye(4, device=T.device, dtype=T.dtype).expand_as(T)
     T_inv[..., :3, :3] = R_inv
-    T_inv[..., :3, 3:] = t_inv
+    T_inv[..., :3, 3:] = -R_inv @ t
+
     return T_inv

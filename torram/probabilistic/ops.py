@@ -38,11 +38,10 @@ def cov_error_propagation(
     C* = J * sqrt(C)
     C' = C* * (C*)^T
 
-    Args:
-        covariance_matrix: covariance matrix of source distribution.
-        Jx: jacobian dT/dx.
-        square_form: use the square-root form or the standard form to calculate C'.
-        nan_to_zero: convert nan gradients to zeros.
+    @param covariance_matrix: covariance matrix of source distribution.
+    @param Jx: jacobian dT/dx.
+    @param square_form: use the square-root form or the standard form to calculate C'.
+    @param nan_to_zero: convert nan gradients to zeros.
     """
     if nan_to_zero:
         Jx = torch.nan_to_num(Jx, nan=0)
@@ -80,12 +79,11 @@ def full_nll_loss(
     trace of the logarithm of the diagonal elements, which is both numerically more stable and more efficient.
     https://math.stackexchange.com/questions/2001041/logarithm-of-the-determinant-of-a-positive-definite-matrix
 
-    Args:
-        mean: multivariate mean tensor (..., N).
-        target: ground-truth values (..., N).
-        covariance: full covariance matrix (..., N, N).
-        marginalize_cov_norm: marginalize covariance normalization term for efficiency.
-        reduction: loss reduction method (mean, sum).
+    @param mean: multivariate mean tensor (..., N).
+    @param target: ground-truth values (..., N).
+    @param covariance: full covariance matrix (..., N, N).
+    @param marginalize_cov_norm: marginalize covariance normalization term for efficiency.
+    @param reduction: loss reduction method (mean, sum).
     """
     assert mean.shape == target.shape
     assert covariance.shape[-1] == covariance.shape[-2]

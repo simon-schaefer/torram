@@ -23,12 +23,11 @@ def is_in_image(
 ) -> torch.Tensor:
     """Check which pixels are in the image.
 
-    Args:
-        pixel: pixels in image [..., 2].
-        width: image width.
-        height: image height.
-    Returns:
-        both pixel coordinates are in the image [...].
+    @param pixel: pixels in image [..., 2].
+    @param width: image width.
+    @param height: image height.
+
+    @returns both pixel coordinates are in the image [...].
     """
     is_in_image_u = torch.logical_and(pixel[..., 0] >= 0, pixel[..., 0] < width)
     is_in_image_v = torch.logical_and(pixel[..., 1] >= 0, pixel[..., 1] < height)
@@ -38,11 +37,10 @@ def is_in_image(
 def warp(points: torch.Tensor, warping: torch.Tensor) -> torch.Tensor:
     """Warp 2D image coordinates with warping tensor.
 
-    Args:
-        points: image coordinates (..., M, 2).
-        warping: warping matrix (..., 3, 3).
-    Returns:
-        warping image coordinates (..., M, 2).
+    @param points: image coordinates (..., M, 2).
+    @param warping: warping matrix (..., 3, 3).
+
+    @returns warping image coordinates (..., M, 2).
     """
     assert points.ndim >= 2 and points.shape[-1] == 2
     ones = torch.ones((*points.shape[:-1], 1), dtype=points.dtype, device=points.device)
@@ -58,10 +56,9 @@ def pad(
     """Pad images with zeros to output shape and adapt the intrinsics accordingly. Changing the image center
     does not affect the projection, therefore we just have to translate the image center accordingly.
 
-    Args:
-        images: image tensor to pad (B, C, H, W).
-        K: according intrinsics (B, 3, 3).
-        output_shape: padded images shape (h, w).
+    @param images: image tensor to pad (B, C, H, W).
+    @param K: according intrinsics (B, 3, 3).
+    @param output_shape: padded images shape (h, w).
     """
     assert K.shape[-1] == K.shape[-2] == 3
     assert len(output_shape) == 2
@@ -85,13 +82,12 @@ def crop_patches(
     """Crop patches from center coordinate with size (2*height, 2*width). If a part of the patch is
     outside the image, zero padding is used.
 
-    Args:
-        images: base images (B, 3, H, W).
-        points: center points of cropping in image coordinates (B, N, 2).
-        width: number of pixels between center and left/right side of the cropping.
-        height: number of pixels between center and top/bottom side of the cropping.
-    Returns:
-        patches: (B, N, 2*height, 2*width).
+    @param images: base images (B, 3, H, W).
+    @param points: center points of cropping in image coordinates (B, N, 2).
+    @param width: number of pixels between center and left/right side of the cropping.
+    @param height: number of pixels between center and top/bottom side of the cropping.
+
+    @returns patches: (B, N, 2*height, 2*width).
     """
     assert images.ndim == 4 and images.shape[-3] == 3  # (B, 3, H, W)
     assert points.ndim == 3 and points.shape[-1] == 2  # (B, N, 2)
@@ -131,15 +127,14 @@ def box_including_2d(
 ) -> torch.Tensor:
     """Compute the smallest rectangle that is in the given bounds and includes all the 2D points.
 
-    Args:
-        points_2d: image points to contain [..., 2].
-        x_min: minimal x coordinate.
-        y_min: minimal y coordinate.
-        x_max: maximal x coordinate.
-        y_max: maximal y coordinate.
-        offset: offset from the smallest possible box (in both directions).
-    Returns:
-        boxes [..., 4], with [x_min, y_min, x_max, y_max]
+    @param points_2d: image points to contain [..., 2].
+    @param x_min: minimal x coordinate.
+    @param y_min: minimal y coordinate.
+    @param x_max: maximal x coordinate.
+    @param y_max: maximal y coordinate.
+    @param offset: offset from the smallest possible box (in both directions).
+
+    @returns boxes [..., 4], with [x_min, y_min, x_max, y_max]
     """
     u_min = torch.min(points_2d[..., 0], dim=-1).values - offset
     u_max = torch.max(points_2d[..., 0], dim=-1).values + offset
@@ -158,11 +153,10 @@ def box_including_2d(
 def boxes_to_masks(bounding_boxes: torch.Tensor, image_shape: Tuple[int, int]) -> torch.Tensor:
     """Convert bounding boxes to image masks with specified width and height.
 
-    Args:
-        bounding_boxes: input bounding boxes (..., 4), int.
-        image_shape: (width, height) of corresponding image.
-    Returns:
-        mask with True inside the bounding boxes, False elsewhere (..., height, width).
+    @param bounding_boxes: input bounding boxes (..., 4), int.
+    @param image_shape: (width, height) of corresponding image.
+
+    @returns mask with True inside the bounding boxes, False elsewhere (..., height, width).
     """
     assert bounding_boxes.shape[-1] == 4
     assert not (
@@ -186,14 +180,13 @@ def meshes_to_masks(
 ) -> np.ndarray:
     """Convert 3D meshes (vertices + faces) to boolean masks using convex hulling.
 
-    Args:
-        vertices: 3D mesh vertices in the camera frame (B, N, 3).
-        faces: 3D mesh faces, same over batch.
-        K: camera intrinsics, same over batch (3, 3).
-        image_shape: (image width, image_height).
-    Return:
-        masks (B, image height, image width).
-        rendered colors (B, 3, image height, image width).
+    @param vertices: 3D mesh vertices in the camera frame (B, N, 3).
+    @param faces: 3D mesh faces, same over batch.
+    @param K: camera intrinsics, same over batch (3, 3).
+    @param image_shape: (image width, image_height).
+
+    @returns masks (B, image height, image width).
+    @returns rendered colors (B, 3, image height, image width).
     """
     import scipy
 
