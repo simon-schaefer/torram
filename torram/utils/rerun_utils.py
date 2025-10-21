@@ -1,9 +1,9 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import rerun as rr
 import trimesh
-from jaxtyping import Bool, Float
+from jaxtyping import Bool, Float, Int
 
 
 def log_body_skeleton(
@@ -12,15 +12,19 @@ def log_body_skeleton(
     connections: List[Tuple[int, int]],
     mask: Optional[Bool[np.ndarray, "J"]] = None,
     radius: float = 0.01,
+    colors: Union[Float[np.ndarray, "J 3"], Float[np.ndarray, "3"], None] = None,
+    edge_colors: Union[Float[np.ndarray, "E 3"], Float[np.ndarray, "3"], None] = None,
 ) -> None:
     """
     Log a body skeleton in rerun.
 
     @param tag: Entity path to log the skeleton to.
     @param joints: 3D joint positions.
-    @param mask: Optional boolean mask indicating valid joints.
     @param connections: List of joint index pairs defining the skeleton connections.
+    @param mask: Optional boolean mask indicating valid joints.
     @param radius: Radius of the joint spheres.
+    @param colors: Optional colors for the joints (as RGB values in [0, 1]).
+    @param edge_colors: Optional colors for the skeleton edges (as RGB values in [0, 1]).
     """
     if mask is not None:
         joints_masked = joints * mask[:, None]
@@ -33,8 +37,8 @@ def log_body_skeleton(
         joints_masked = joints
         edges = joints[connections]
 
-    rr.log(f"{tag}/joints", rr.Points3D(joints_masked, radii=radius))
-    rr.log(f"{tag}/skeleton", rr.LineStrips3D(edges))
+    rr.log(f"{tag}/joints", rr.Points3D(joints_masked, radii=radius, colors=colors))
+    rr.log(f"{tag}/skeleton", rr.LineStrips3D(edges, colors=edge_colors))
 
 
 def log_trimesh(
