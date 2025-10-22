@@ -4,7 +4,7 @@ from typing import Callable, List, Literal, Optional, Tuple, Union
 
 import moderngl
 import numpy as np
-from jaxtyping import Float, UInt8
+from jaxtyping import Bool, Float, UInt8
 from PIL import Image, ImageDraw, ImageFont
 from pyrr import Matrix44
 
@@ -141,6 +141,7 @@ def draw_skeleton(
     joints: Float[np.ndarray, "N 3"],
     kintree: List[Tuple[int, int]],
     colors: List[Tuple[float, float, float]],
+    mask: Optional[Bool[np.ndarray, "N"]] = None,
 ):
     """Draws a skeleton from joint positions and a kinematic tree.
 
@@ -149,12 +150,15 @@ def draw_skeleton(
     @param joints: An array of shape (N, 3) representing the joint positions.
     @param kintree: A list of tuples representing the kinematic tree edges.
     @param colors: A list of RGB tuples representing the colors for each edge.
+    @param mask: An optional boolean array to mask out certain joints.
     """
     assert len(kintree) == len(colors), "Kinematic tree and colors must have the same length"
     num_edges = len(kintree)
 
-    vertices = np.ones((num_edges * 4, 3), dtype="f4")
+    vertices = np.zeros((num_edges * 4, 3), dtype="f4")
     for i, (start, end) in enumerate(kintree):
+        if mask is not None and (not mask[start] or not mask[end]):
+            continue
         vertices[i * 4 + 0] = joints[start]
         vertices[i * 4 + 1] = colors[i]
         vertices[i * 4 + 2] = joints[end]
