@@ -8,17 +8,19 @@ from omegaconf import DictConfig, ListConfig, OmegaConf
 OmegaConfigType = DictConfig | ListConfig
 
 
-def setup_logging_config(debug: bool, log_level_non_debug=logging.INFO) -> None:
+def setup_logging_config(debug: bool, log_level_non_debug=logging.INFO, force: bool = True) -> None:
     """Set up logging configuration.
 
     @param debug: If True, set logging level to DEBUG, else to log_level_non_debug.
     @param log_level_non_debug: Logging level when debug is False.
+    @param force: If True, force reconfiguration of logging.
     """
     log_level = logging.DEBUG if debug else log_level_non_debug
     logging.basicConfig(
         level=log_level,
         format="[%(asctime)s - %(levelname)s] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
+        force=True,
     )
 
 

@@ -27,7 +27,7 @@ def log_body_skeleton(
     @param edge_colors: Optional colors for the skeleton edges (as RGB values in [0, 1]).
     """
     if mask is not None:
-        joints_masked = joints * mask[:, None]
+        joints_masked = joints[mask]
         edges = []
         for a, b in connections:
             valid = mask[a] & mask[b]
