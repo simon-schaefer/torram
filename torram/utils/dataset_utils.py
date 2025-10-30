@@ -1,6 +1,9 @@
+import logging
 import random
-from typing import List, Optional, Tuple
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import torch
 from torch.utils.data import Subset
 
@@ -49,3 +52,42 @@ def get_batch_from_dataset(
     for key in batch[0].keys():
         collated_batch[key] = [item[key] for item in batch]
     return {key: torch.stack(collated_batch[key], dim=0) for key in collated_batch}
+
+
+def chunk_and_save(
+    data: Dict[str, Union[np.ndarray, torch.Tensor]],
+    output_dir: Path,
+    seq_len: int,
+    suffix: str = ".pt",
+    include_incomplete: bool = False,
+) -> List[Path]:
+    """Chunk data into sequences of fixed length and save to disk.
+
+    @param data: Dictionary of data arrays to chunk. All arrays must have the same length.
+    @param output_dir: Directory to save the chunked data.
+    @param seq_len: Length of each chunked sequence.
+    @param include_incomplete: Whether to include the last chunk if it's shorter than seq_len.
+    """
+    logger = logging.getLogger(__name__)
+    if len(data) == 0:
+        logger.warning("No data provided to chunk_and_save.")
+        return []
+
+    num_frames = len(next(iter(data.values())))
+    assert all(len(value) == num_frames for value in data.values())
+
+    output_files = []
+    for start_idx in range(0, num_frames, seq_len):
+        end_idx = min(start_idx + seq_len, num_frames)
+        if end_idx - start_idx < seq_len and not include_incomplete:
+            continue
+
+        output_file = output_dir / f"{start_idx:06d}_{end_idx:06d}{suffix}"
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        torch.save(
+            {key: value[start_idx:end_idx] for key, value in data.items()},
+            output_file,
+        )
+        output_files.append(output_file)
+
+    return output_files
