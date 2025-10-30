@@ -1,7 +1,7 @@
 import logging
 import random
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -55,7 +55,7 @@ def get_batch_from_dataset(
 
 
 def chunk_and_save(
-    data: Dict[str, Union[np.ndarray, torch.Tensor]],
+    data: Dict[str, torch.Tensor],
     output_dir: Path,
     seq_len: int,
     suffix: str = ".pt",
@@ -85,7 +85,7 @@ def chunk_and_save(
         output_file = output_dir / f"{start_idx:06d}_{end_idx:06d}{suffix}"
         output_file.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
-            {key: value[start_idx:end_idx] for key, value in data.items()},
+            {key: value[start_idx:end_idx].clone() for key, value in data.items()},
             output_file,
         )
         output_files.append(output_file)

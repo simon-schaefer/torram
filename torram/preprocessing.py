@@ -5,11 +5,14 @@ import zipfile
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, Concatenate, List, Optional, ParamSpec, TypeVar
 
 from tqdm import tqdm
 
 from torram.utils.config import setup_logging_config
+
+P = ParamSpec("P")
+R = TypeVar("R")
 
 
 def _process_seq(
@@ -30,7 +33,7 @@ def preprocess_to_zip(
     dataset_dir: Path,
     output_file: Path,
     list_sequences: Callable[[Path], List[Path]],
-    process_function: Callable[[Path, Path, Any], List[Path]],
+    process_function: Callable[Concatenate[Path, Path, P], List[Path]],
     cache_dir: Optional[Path] = None,
     **kwargs,
 ) -> None:
@@ -97,7 +100,7 @@ def preprocess_to_zip(
 
 def preprocess_main(
     list_sequences: Callable[[Path], List[Path]],
-    process_function: Callable[[Path, Path, Any], List[Path]],
+    process_function: Callable[Concatenate[Path, Path, P], List[Path]],
     parser: Optional[argparse.ArgumentParser] = None,
 ):
     """Main function to preprocess a dataset and store the results in a zip file.
