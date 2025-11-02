@@ -3,16 +3,13 @@ from typing import Optional, Tuple, Union
 import numpy as np
 import torch
 import torch.nn.functional
-from kornia.geometry import depth_to_3d, project_points
+from jaxtyping import Bool, Float, Int
+from kornia.geometry.camera.perspective import unproject_points
 
 __all__ = [
-    "depth_to_3d",
     "crop_patches",
-    "project_points",
     "is_in_image",
     "box_including_2d",
-    "boxes_to_masks",
-    "meshes_to_masks",
     "pad",
     "warp",
 ]
@@ -150,52 +147,27 @@ def box_including_2d(
     return torch.stack([u_min, v_min, u_max, v_max], dim=-1)
 
 
-def boxes_to_masks(bounding_boxes: torch.Tensor, image_shape: Tuple[int, int]) -> torch.Tensor:
-    """Convert bounding boxes to image masks with specified width and height.
+def unproject(
+    points_2d: Int[torch.Tensor, "B 2"],
+    depth_img: Float[torch.Tensor, "H W"],
+    K: Float[torch.Tensor, "3 3"],
+) -> Tuple[Float[torch.Tensor, "B 3"], Bool[torch.Tensor, "B"]]:
+    """Unproject 2D points to 3D points in camera coordinates.
 
-    @param bounding_boxes: input bounding boxes (..., 4), int.
-    @param image_shape: (width, height) of corresponding image.
-
-    @returns mask with True inside the bounding boxes, False elsewhere (..., height, width).
+    @param points_2d: 2D keypoints (B, 2).
+    @param depth_img: depth frame (H, W).
+    @param K: camera intrinsics (3, 3).
+    @returns 3D points in camera coordinates (B, 3) and mask (B,) indicating valid points.
     """
-    assert bounding_boxes.shape[-1] == 4
-    assert not (
-        torch.is_floating_point(bounding_boxes) or torch.is_complex(bounding_boxes)
-    )  # int type
-    bbox_flat = torch.flatten(bounding_boxes, end_dim=-2)
-    num_bboxes = len(bbox_flat)
-    width, height = image_shape
+    n = points_2d.shape[0]
+    h, w = depth_img.shape
 
-    masks = torch.zeros((num_bboxes, height, width), dtype=torch.bool, device=bounding_boxes.device)
-    for i in range(num_bboxes):
-        masks[i, bbox_flat[i, 1] : bbox_flat[i, 3], bbox_flat[i, 0] : bbox_flat[i, 2]] = True
-    return masks.view(*bounding_boxes.shape[:-1], height, width).contiguous()
+    mask = is_in_image(points_2d, w, h)
+    points3d = torch.zeros((n, 3), dtype=torch.float32, device=points_2d.device)
+    if torch.sum(mask) == 0:
+        return points3d, mask
 
+    depth = depth_img[points_2d[mask, 1], points_2d[mask, 0]]
+    points3d[mask] = unproject_points(points_2d[mask], depth[:, None], K[None])
 
-def meshes_to_masks(
-    vertices: torch.Tensor,
-    faces: np.ndarray,
-    K: torch.Tensor,
-    image_shape: Tuple[int, int],
-) -> np.ndarray:
-    """Convert 3D meshes (vertices + faces) to boolean masks using convex hulling.
-
-    @param vertices: 3D mesh vertices in the camera frame (B, N, 3).
-    @param faces: 3D mesh faces, same over batch.
-    @param K: camera intrinsics, same over batch (3, 3).
-    @param image_shape: (image width, image_height).
-
-    @returns masks (B, image height, image width).
-    @returns rendered colors (B, 3, image height, image width).
-    """
-    import scipy
-
-    vertices_2d = project_points(vertices, camera_matrix=K)
-    valid_vertices = is_in_image(vertices_2d, width=image_shape[0], height=image_shape[1])
-    points = vertices_2d[valid_vertices, :].detach().cpu().numpy()
-    deln = scipy.spatial.Delaunay(points)
-
-    idx_2d = np.indices(image_shape, np.int16)
-    idx_2d = np.moveaxis(idx_2d, 0, -1)
-    deln_mask = deln.find_simplex(idx_2d)
-    return ~(deln_mask < 0).T
+    return points3d, mask

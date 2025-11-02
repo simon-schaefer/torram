@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
 import torch
+from kornia.geometry.camera.perspective import project_points
 
-from torram.geometry.vision import box_including_2d, boxes_to_masks, crop_patches, is_in_image, pad
+from torram.geometry.vision import box_including_2d, crop_patches, is_in_image, pad, unproject
 
 
 @pytest.mark.parametrize("shape", ((4, 5, 3), (1,), (1, 1, 1)))
@@ -97,20 +98,25 @@ def test_box_including_2d_bounds():
     assert torch.all(torch.less_equal(bbox, 100))
 
 
-def test_boxes_to_masks():
-    width, height = 480, 360
-    bounding_boxes = torch.tensor([[20, 20, 70, 80], [100, 80, 200, 200]])
-    masks = boxes_to_masks(bounding_boxes, (width, height))
+def test_unproject_invertible():
+    points2d = (torch.rand((10, 2)) * 200).long()
+    depth_img = torch.rand((200, 200))
+    K = torch.tensor([[100.0, 0.0, 100.0], [0.0, 100.0, 100.0], [0.0, 0.0, 1.0]])
+    points3d, mask = unproject(points2d, depth_img, K)
+    assert points3d.shape == (10, 3)
+    assert mask.all()  # all points should be valid
 
-    assert masks.shape == (2, height, width)
-    assert masks.is_contiguous()
-    x = torch.arange(width)
-    y = torch.arange(height)
-    for i, bbox in enumerate(bounding_boxes):
-        assert torch.all(
-            masks[i, bbox[1] : bbox[3], bbox[0] : bbox[2]]
-        )  # all true within bounding box
-        assert not torch.any(masks[i, y > bbox[3], :])  # false anywhere else
-        assert not torch.any(masks[i, y < bbox[1], :])
-        assert not torch.any(masks[i, :, x > bbox[2]])
-        assert not torch.any(masks[i, :, x < bbox[0]])
+    points2d_ = project_points(points3d.unsqueeze(0), K).squeeze(0)
+    points2d_ = torch.round(points2d_).long()
+    assert torch.allclose(points2d, points2d_, atol=1e-4)
+
+
+def test_unproject_invalid():
+    points2d = (torch.rand((10, 2)) * 200).long()
+    points2d[0] = torch.tensor([250, 150])  # outside image
+    depth_img = torch.rand((200, 200))
+    K = torch.tensor([[100.0, 0.0, 100.0], [0.0, 100.0, 100.0], [0.0, 0.0, 1.0]])
+    _, mask = unproject(points2d, depth_img, K)
+
+    assert not mask[0]
+    assert mask[1:].all()  # all other points should be valid
