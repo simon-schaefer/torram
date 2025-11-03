@@ -24,14 +24,26 @@ def setup_logging_config(debug: bool, log_level_non_debug=logging.INFO, force: b
     )
 
 
-def load_config_from_files_and_cli(schema: Any) -> Tuple[Any, bool]:
+def load_config_from_files_and_cli(schema: Any, include_cfg_files: bool = True) -> Tuple[Any, bool]:
     """Load a configuration from argparse and merge it with a schema."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", nargs="+", required=True)
+    if include_cfg_files:
+        parser.add_argument("--config", nargs="+", required=True)
     parser.add_argument("--debug", action="store_true", help="Enable debug mode.")
     args, unknown_args = parser.parse_known_args()
-    config = read_config(args.config, schema, unknown_args)
+
+    if include_cfg_files:
+        config_files = args.config
+    else:
+        config_files = None
+
+    config = read_config(config_files, schema, unknown_args)
     return config, args.debug
+
+
+def load_config_from_cli(schema: Any) -> Tuple[Any, bool]:
+    """Load a configuration from argparse and merge it with a schema."""
+    return load_config_from_files_and_cli(schema, include_cfg_files=False)
 
 
 def read_config(

@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional
 from jaxtyping import Bool, Float, Int
+from kornia.geometry import transform_points
 from kornia.geometry.camera.perspective import unproject_points
 
 __all__ = [
@@ -148,26 +149,46 @@ def box_including_2d(
 
 
 def unproject(
-    points_2d: Int[torch.Tensor, "B 2"],
-    depth_img: Float[torch.Tensor, "H W"],
-    K: Float[torch.Tensor, "3 3"],
-) -> Tuple[Float[torch.Tensor, "B 3"], Bool[torch.Tensor, "B"]]:
+    points_2d: Int[torch.Tensor, "B N 2"],
+    depth_img: Float[torch.Tensor, "B H W"],
+    K: Float[torch.Tensor, "B 3 3"],
+    T_W_C: Optional[Float[torch.Tensor, "B 4 4"]] = None,
+) -> Tuple[Float[torch.Tensor, "B N 3"], Bool[torch.Tensor, "B N"]]:
     """Unproject 2D points to 3D points in camera coordinates.
 
-    @param points_2d: 2D keypoints (B, 2).
-    @param depth_img: depth frame (H, W).
-    @param K: camera intrinsics (3, 3).
-    @returns 3D points in camera coordinates (B, 3) and mask (B,) indicating valid points.
+    @param points_2d: 2D keypoints.
+    @param depth_img: depth frame.
+    @param K: camera intrinsics.
+    @param T_W_C: optional transformation from world to camera coordinates.
+    @returns 3D points in camera coordinates and mask indicating valid points.
     """
-    n = points_2d.shape[0]
-    h, w = depth_img.shape
+    B, N, _ = points_2d.shape
+    _, h, w = depth_img.shape
 
     mask = is_in_image(points_2d, w, h)
-    points3d = torch.zeros((n, 3), dtype=torch.float32, device=points_2d.device)
+    points3d = torch.zeros((B, N, 3), dtype=torch.float32, device=points_2d.device)
     if torch.sum(mask) == 0:
         return points3d, mask
 
-    depth = depth_img[points_2d[mask, 1], points_2d[mask, 0]]
-    points3d[mask] = unproject_points(points_2d[mask], depth[:, None], K[None])
+    points_2d_flat = points_2d.view(B * N, 2).long()
+    mask_flat = mask.view(B * N)
+    batch_idx = torch.arange(B, device=points_2d.device).repeat_interleave(N)
+    batch_idx = batch_idx[mask_flat]
+
+    depth = depth_img[batch_idx, points_2d_flat[mask_flat, 1], points_2d_flat[mask_flat, 0]]
+    points3d[mask] = unproject_points(
+        point_2d=points_2d_flat[mask_flat].unsqueeze(0),
+        depth=depth.unsqueeze(1),
+        camera_matrix=K[batch_idx].unsqueeze(0),
+    )
+
+    # Transform from camera to world coordinates, if given.
+    if T_W_C is not None:
+        points3d[mask] = transform_points(T_W_C[batch_idx], points3d[mask][:, None])[:, 0]
+
+    # Correct the mask for invalid depth values.
+    mask_depth = depth > 0
+    mask[mask.clone()] = mask_depth
+    points3d[~mask] = 0.0
 
     return points3d, mask

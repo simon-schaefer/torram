@@ -1,4 +1,3 @@
-import numpy as np
 import pytest
 import torch
 from kornia.geometry.camera.perspective import project_points
@@ -98,25 +97,46 @@ def test_box_including_2d_bounds():
     assert torch.all(torch.less_equal(bbox, 100))
 
 
-def test_unproject_invertible():
-    points2d = (torch.rand((10, 2)) * 200).long()
-    depth_img = torch.rand((200, 200))
+@pytest.mark.parametrize("batch_size", (1, 5))
+def test_unproject_invertible(batch_size: int):
+    points2d = (torch.rand((batch_size, 10, 2)) * 200).long()
+    depth_img = torch.rand((batch_size, 200, 200))
     K = torch.tensor([[100.0, 0.0, 100.0], [0.0, 100.0, 100.0], [0.0, 0.0, 1.0]])
+    K = K.unsqueeze(0).repeat(batch_size, 1, 1)
+
     points3d, mask = unproject(points2d, depth_img, K)
-    assert points3d.shape == (10, 3)
+    assert points3d.shape == (batch_size, 10, 3)
     assert mask.all()  # all points should be valid
 
-    points2d_ = project_points(points3d.unsqueeze(0), K).squeeze(0)
+    points2d_ = project_points(points3d, K)
     points2d_ = torch.round(points2d_).long()
-    assert torch.allclose(points2d, points2d_, atol=1e-4)
+    assert torch.allclose(points2d, points2d_)
 
 
 def test_unproject_invalid():
-    points2d = (torch.rand((10, 2)) * 200).long()
-    points2d[0] = torch.tensor([250, 150])  # outside image
-    depth_img = torch.rand((200, 200))
+    points2d = (torch.rand((3, 10, 2)) * 200).long()
+    points2d[0, 0] = torch.tensor([250, 150])  # outside image
+    depth_img = torch.rand((3, 200, 200))
     K = torch.tensor([[100.0, 0.0, 100.0], [0.0, 100.0, 100.0], [0.0, 0.0, 1.0]])
+    K = K.unsqueeze(0).repeat(3, 1, 1)
     _, mask = unproject(points2d, depth_img, K)
 
-    assert not mask[0]
-    assert mask[1:].all()  # all other points should be valid
+    assert not mask[0, 0]
+    assert mask[0, 1:].all()  # all other points should be valid
+    assert mask[1:].all()  # all points in other batches should be valid
+
+
+@pytest.mark.parametrize("batch_size", (1, 5))
+def test_unproject_with_transform(batch_size: int):
+    points2d = (torch.rand((batch_size, 10, 2)) * 200).long()
+    depth_img = torch.rand((batch_size, 200, 200))
+    K = torch.tensor([[100.0, 0.0, 100.0], [0.0, 100.0, 100.0], [0.0, 0.0, 1.0]])
+    K = K.unsqueeze(0).repeat(batch_size, 1, 1)
+    T_W_C = torch.eye(4).unsqueeze(0).repeat(batch_size, 1, 1)
+
+    points3d, mask = unproject(points2d, depth_img, K, T_W_C)
+    assert points3d.shape == (batch_size, 10, 3)
+    assert mask.all()  # all points should be valid
+
+    points3d_no_transform, _ = unproject(points2d, depth_img, K)
+    assert torch.allclose(points3d, points3d_no_transform)
