@@ -58,6 +58,7 @@ def chunk_and_save(
     data: Dict[str, torch.Tensor],
     output_dir: Path,
     seq_len: int,
+    stride: Optional[int] = None,
     suffix: str = ".pt",
     include_incomplete: bool = False,
 ) -> List[Path]:
@@ -66,18 +67,20 @@ def chunk_and_save(
     @param data: Dictionary of data arrays to chunk. All arrays must have the same length.
     @param output_dir: Directory to save the chunked data.
     @param seq_len: Length of each chunked sequence.
+    @param stride: Stride between chunks. If None, defaults to seq_len (non-overlapping).
     @param include_incomplete: Whether to include the last chunk if it's shorter than seq_len.
     """
     logger = logging.getLogger(__name__)
     if len(data) == 0:
         logger.warning("No data provided to chunk_and_save.")
         return []
+    stride = seq_len if stride is None else stride
 
     num_frames = len(next(iter(data.values())))
     assert all(len(value) == num_frames for value in data.values())
 
     output_files = []
-    for start_idx in range(0, num_frames, seq_len):
+    for start_idx in range(0, num_frames, stride):
         end_idx = min(start_idx + seq_len, num_frames)
         if end_idx - start_idx < seq_len and not include_incomplete:
             continue

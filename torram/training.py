@@ -254,7 +254,7 @@ def train(
                     "global_step": global_step,
                     "config": OmegaConf.to_container(config, resolve=True),
                 }
-                checkpoint_path = os.path.join(wandb.run.dir, f"checkpoint_{global_step}.pt")
+                checkpoint_path = os.path.join(wandb.run.dir, f"checkpoint_{global_step:09d}.pth")
                 torch.save(state, checkpoint_path)
                 wandb.save(checkpoint_path)
 
