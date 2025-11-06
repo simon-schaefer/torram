@@ -34,7 +34,9 @@ def preprocess_to_zip(
     output_file: Path,
     list_sequences: Callable[[Path], List[Path]],
     process_function: Callable[Concatenate[Path, Path, P], List[Path]],
+    num_workers: int = mp.cpu_count(),
     cache_dir: Optional[Path] = None,
+    debug: bool = False,
     **kwargs,
 ) -> None:
     """Preprocess a list of sequence files and store the results in a zip file.
@@ -58,6 +60,7 @@ def preprocess_to_zip(
     @param list_sequences: Function to list sequence files in the dataset directory.
     @param process_function: Function to preprocess each sequence file.
     @param cache_dir: Optional path to a cache directory for intermediate files.
+    @param debug: Whether to enable debug logging and single-threaded processing.
     @param kwargs: Additional keyword arguments to pass to the preprocessing function.
     """
 
@@ -81,10 +84,13 @@ def preprocess_to_zip(
     args = [(f, dataset_dir, cache_dir_path) for f in sequences]
     func = partial(_process_seq, process_function=process_function, **kwargs)
 
-    processed = []
-    with mp.Pool(processes=mp.cpu_count()) as pool:
-        processed += list(tqdm(pool.imap_unordered(func, args), total=len(args)))
-    processed = sum(processed, [])  # Flatten the list of lists.
+    if debug:
+        processed = [func(arg) for arg in tqdm(args)]
+    else:
+        processed = []
+        with mp.Pool(processes=num_workers) as pool:
+            processed += list(tqdm(pool.imap_unordered(func, args), total=len(args)))
+        processed = sum(processed, [])  # Flatten the list of lists.
 
     # Write the processed files to a zip file.
     logger.info(f"Writing processed sequences to zip file {output_file}")
@@ -113,6 +119,7 @@ def preprocess_main(
     parser.add_argument("--dataset-dir", type=Path, required=True)
     parser.add_argument("--output-file", type=Path, required=True)
     parser.add_argument("--cache-dir", type=Path, default=None)
+    parser.add_argument("--num-workers", type=int, default=mp.cpu_count())
     parser.add_argument("--debug", action="store_true")
     args = parser.parse_args()
 
@@ -133,5 +140,7 @@ def preprocess_main(
         list_sequences=list_sequences,
         process_function=process_function,
         cache_dir=args.cache_dir,
+        num_workers=args.num_workers,
+        debug=args.debug,
         **kwargs,
     )

@@ -55,7 +55,7 @@ def get_batch_from_dataset(
 
 
 def chunk_and_save(
-    data: Dict[str, torch.Tensor],
+    data: Dict[str, torch.Tensor | np.ndarray],
     output_dir: Path,
     seq_len: int,
     stride: Optional[int] = None,
@@ -88,7 +88,14 @@ def chunk_and_save(
         output_file = output_dir / f"{start_idx:06d}_{end_idx:06d}{suffix}"
         output_file.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
-            {key: value[start_idx:end_idx].clone() for key, value in data.items()},
+            {
+                key: (
+                    value[start_idx:end_idx].clone()
+                    if isinstance(value, torch.Tensor)
+                    else value[start_idx:end_idx].copy()
+                )
+                for key, value in data.items()
+            },
             output_file,
         )
         output_files.append(output_file)
