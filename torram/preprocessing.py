@@ -129,7 +129,7 @@ def preprocess_main(
     kwargs = {
         key: value
         for key, value in vars(args).items()
-        if key not in ["dataset_dir", "output_file", "cache_dir", "debug"]
+        if key not in ["dataset_dir", "output_file", "cache_dir", "debug", "num_workers"]
     }
     logger.info(f"Preprocessing with args: {vars(args)}")
 
