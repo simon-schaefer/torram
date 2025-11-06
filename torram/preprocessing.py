@@ -90,7 +90,7 @@ def preprocess_to_zip(
         processed = []
         with mp.Pool(processes=num_workers) as pool:
             processed += list(tqdm(pool.imap_unordered(func, args), total=len(args)))
-        processed = sum(processed, [])  # Flatten the list of lists.
+    processed = sum(processed, [])  # Flatten the list of lists.
 
     # Write the processed files to a zip file.
     logger.info(f"Writing processed sequences to zip file {output_file}")
