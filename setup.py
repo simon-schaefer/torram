@@ -8,7 +8,7 @@ long_description = (code_directory / "README.md").read_text()
 setup(
     name="torram",
     packages=find_packages(),
-    version="1.5.8",
+    version="1.5.9",
     install_requires=(
         "torch >= 1.11.0",
         "numpy",

@@ -3,15 +3,21 @@ import logging
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, Protocol, Type, cast
+from typing import Any, Callable, Dict, Protocol, Type, Union, cast
 
 import torch
+import torch.utils.data
 import wandb
 from omegaconf import OmegaConf
 from torch.utils.data import DataLoader
 
 from torram.utils.config import read_config
-from torram.utils.dataset_utils import train_test_split
+from torram.utils.dataset_utils import (
+    DataConfig,
+    DatasetSchema,
+    ExtendedDatasetSchema,
+    get_train_test_split_w_config,
+)
 from torram.utils.ops import to_device_dict
 from torram.utils.wandb_utils import load_checkpoint_from_wandb
 
@@ -28,13 +34,6 @@ class LoggingConfig:
     num_ckpt_iterations: int
     num_test_iterations: int
     log_project: str
-
-
-@dataclass
-class DataConfig:
-    num_workers: int
-    batch_size: int
-    test_split: float
 
 
 class TrainingConfig(Protocol):
@@ -88,16 +87,14 @@ class TrainerSchema(Protocol):
         raise NotImplementedError
 
 
-class DatasetSchema(Protocol):
-
-    def __init__(self, config: Any):
-        raise NotImplementedError
-
-
 def train(
     config_schema: Type[TrainingConfig],
     trainer_class: Type[TrainerSchema],
-    dataset_class: Type[DatasetSchema],
+    dataset_class: Union[
+        Type[DatasetSchema],
+        Type[ExtendedDatasetSchema],
+        Callable[[Any], torch.utils.data.Dataset],
+    ],
     device: torch.device | str | None = None,
 ) -> None:
     parser = argparse.ArgumentParser()
@@ -141,7 +138,11 @@ def train(
 
     # Setup dataset and dataloader.
     dataset = dataset_class(getattr(config, "dataset", None))
-    dataset_train, dataset_test = train_test_split(dataset, test_ratio=config.data.test_split)
+    dataset = cast(torch.utils.data.Dataset, dataset)
+    dataset_train, dataset_test = get_train_test_split_w_config(dataset, config.data)
+    assert len(dataset_train) > 0, "Training dataset is empty."
+    assert len(dataset_test) > 0, "Testing dataset is empty."
+
     dataloader_train = DataLoader(
         dataset_train,
         num_workers=config.data.num_workers,

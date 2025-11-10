@@ -1,11 +1,35 @@
 import logging
 import random
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Protocol, Tuple, Union, cast
 
 import numpy as np
 import torch
 from torch.utils.data import Subset
+
+
+@dataclass
+class DataConfig:
+    num_workers: int
+    batch_size: int
+    test_split: float
+
+
+class DatasetSchema(Protocol):
+
+    def __init__(self, config: Any):
+        raise NotImplementedError
+
+    def __len__(self) -> int:
+        raise NotImplementedError
+
+
+class ExtendedDatasetSchema(DatasetSchema, Protocol):
+
+    def get_train_test_split(self) -> tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
+        """Return train and test splits of the dataset."""
+        raise NotImplementedError
 
 
 def train_test_split(dataset, test_ratio: float, seed: int = 42) -> Tuple[Subset, Subset]:
@@ -101,3 +125,62 @@ def chunk_and_save(
         output_files.append(output_file)
 
     return output_files
+
+
+def train_test_split_concat_dataset(
+    dataset: torch.utils.data.ConcatDataset,
+    test_ratio: float,
+    seed: int = 42,
+) -> Tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
+    """Split a ConcatDataset into train and test sets.
+
+    If any of the constituent datasets have a predefined train/test split method,
+    those splits will be used. Datasets without predefined splits will be included
+    in the training set only.
+
+    @param dataset: The ConcatDataset to split.
+    @param test_ratio: The ratio of the dataset to use for testing.
+    @param seed: Random seed for splitting.
+    """
+    has_predefined_splits = any(hasattr(ds, "get_train_test_split") for ds in dataset.datasets)
+
+    # If no datasets have predefined splits, do a random split on the concatenated dataset.
+    if not has_predefined_splits:
+        return train_test_split(dataset, test_ratio, seed)
+
+    # If some datasets have predefined splits, use them. All datasets with no predefined splits
+    # will be included in the training set only.
+    train_datasets = []
+    test_datasets = []
+    for ds in dataset.datasets:
+        if hasattr(ds, "get_train_test_split"):
+            train_ds, test_ds = ds.get_train_test_split()
+            train_datasets.append(train_ds)
+            test_datasets.append(test_ds)
+        else:
+            train_datasets.append(ds)
+
+    train_ds = torch.utils.data.ConcatDataset(train_datasets)
+    test_ds = torch.utils.data.ConcatDataset(test_datasets)
+    return train_ds, test_ds
+
+
+def get_train_test_split_w_config(
+    dataset: torch.utils.data.Dataset,
+    config: DataConfig,
+) -> Tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
+    """Get train and test splits of a dataset based on the provided configuration.
+
+    @param dataset: The dataset to split.
+    @param config: DataConfig containing the test split ratio.
+    """
+    if isinstance(dataset, torch.utils.data.ConcatDataset):
+        dataset_train, dataset_test = train_test_split_concat_dataset(
+            dataset=dataset,
+            test_ratio=config.test_split,
+        )
+    elif hasattr(dataset, "get_train_test_split"):
+        dataset_train, dataset_test = dataset.get_train_test_split()
+    else:
+        dataset_train, dataset_test = train_test_split(dataset, test_ratio=config.test_split)
+    return dataset_train, dataset_test
