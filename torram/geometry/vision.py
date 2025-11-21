@@ -1,19 +1,14 @@
 from typing import Optional, Tuple, Union
 
-import numpy as np
 import torch
 import torch.nn.functional
+import torch.nn.functional as F
 from jaxtyping import Bool, Float, Int
 from kornia.geometry import transform_points
-from kornia.geometry.camera.perspective import unproject_points
+from kornia.geometry.camera.perspective import project_points, unproject_points
+from kornia.geometry.depth import depth_to_3d_v2
 
-__all__ = [
-    "crop_patches",
-    "is_in_image",
-    "box_including_2d",
-    "pad",
-    "warp",
-]
+__all__ = ["crop_patches", "is_in_image", "box_including_2d", "pad", "warp", "warp_depth_image"]
 
 
 def is_in_image(
@@ -46,6 +41,75 @@ def warp(points: torch.Tensor, warping: torch.Tensor) -> torch.Tensor:
     points_warped = torch.einsum("...il,...ml->...mi", warping, points_h)
     points_warped = points_warped[..., :2] / points_warped[..., -1, None]
     return points_warped.to(points.dtype)
+
+
+def warp_depth_image(
+    depth_img: torch.Tensor,
+    K_src: torch.Tensor,
+    K_tgt: torch.Tensor,
+    img_size_tgt: Tuple[int, int],
+    T_src_tgt: Optional[torch.Tensor] = None,
+) -> torch.Tensor:
+    """Warp depth image from source to target view.
+
+    @param depth_img: source depth image (B, H, W).
+    @param K_src: source camera intrinsics (B, 3, 3).
+    @param K_tgt: target camera intrinsics (B, 3, 3).
+    @param img_size_tgt: target image size (Wt, Ht).
+    @param T_tgt_src: transformation from source to target camera coordinates (B, 4, 4).
+
+    @returns warped depth image in target view (B, Ht, Wt).
+    """
+    B, H, W = depth_img.shape
+    W_new, H_new = img_size_tgt
+    depth = depth_img[:, None, :, :]
+
+    # Build pixel grid in *target* resolution
+    y, x = torch.meshgrid(
+        torch.arange(H_new, device=depth.device),
+        torch.arange(W_new, device=depth.device),
+        indexing="ij",
+    )
+    pix_tgt = torch.stack([x, y], dim=-1).float()
+    pix_tgt = pix_tgt.unsqueeze(0).repeat(B, 1, 1, 1)
+
+    # Convert target pixels → target camera rays
+    fx_t = K_tgt[:, 0, 0].view(B, 1, 1)
+    fy_t = K_tgt[:, 1, 1].view(B, 1, 1)
+    cx_t = K_tgt[:, 0, 2].view(B, 1, 1)
+    cy_t = K_tgt[:, 1, 2].view(B, 1, 1)
+
+    x_norm = (pix_tgt[..., 0] - cx_t) / fx_t
+    y_norm = (pix_tgt[..., 1] - cy_t) / fy_t
+    rays_tgt = torch.stack([x_norm, y_norm, torch.ones_like(x_norm)], dim=-1)
+
+    # Transform rays from target camera → source camera using Kornia
+    if T_src_tgt is not None:
+        rays_tgt_flat = rays_tgt.view(B, -1, 3)
+        rays_src_flat = transform_points(T_src_tgt, rays_tgt_flat)
+        rays_src = rays_src_flat.view(B, H_new, W_new, 3)
+    else:
+        rays_src = rays_tgt
+
+    # Project rays_src into the *source* image plane
+    pts_proj_src = project_points(rays_src, K_src)
+    u_src = pts_proj_src[..., 0]
+    v_src = pts_proj_src[..., 1]
+
+    # Sample depth values from source depth image. Use grid_sample which requires
+    # normalized coordinates in [-1, 1]. Use nearest neighbor interpolation to avoid
+    # artifacts (no interpolation between depth values & holes).
+    u_norm = (u_src / (W - 1)) * 2 - 1
+    v_norm = (v_src / (H - 1)) * 2 - 1
+    grid = torch.stack([u_norm, v_norm], dim=-1)  # (B,H_new,W_new,2)
+
+    return F.grid_sample(
+        depth,
+        grid,
+        mode="nearest",
+        padding_mode="zeros",
+        align_corners=True,
+    )
 
 
 def pad(
@@ -192,3 +256,37 @@ def unproject(
     points3d[~mask] = 0.0
 
     return points3d, mask
+
+
+def pluecker_embeddings(
+    points2d: Float[torch.Tensor, "B T N 2"],
+    K: Float[torch.Tensor, "B 3 3"],
+    T_W_C: Float[torch.Tensor, "B T 4 4"],
+) -> Float[torch.Tensor, "B T N 6"]:
+    """
+    Convert 2D keypoints to world-space Plücker line embeddings.
+
+    @param points2d: 2D keypoints in image coordinates.
+    @param K: Camera intrinsics.
+    @param T_W_C: Transformation from world to camera coordinates.
+    @return World-space Plücker line coordinates [d | m].
+    """
+    device = points2d.device
+    B, T, N, _ = points2d.shape
+    R_W_C = T_W_C[:, :, :3, :3]
+    c_world = T_W_C[:, :, :3, 3]  # camera center in world coordinates
+
+    # Backproject pixel to 3D direction in camera frame.
+    homog = torch.cat([points2d, torch.ones((B, T, N, 1), device=device)], dim=-1)
+    K_inv = torch.inverse(K)
+    d_cam = torch.einsum("bij,btnj->btni", K_inv, homog)
+    d_cam = d_cam / torch.norm(d_cam, dim=-1, keepdim=True)
+
+    # Direction and moment in world coordinates. Transform direction and compute moment.
+    d_world = torch.einsum("btij,btnj->btni", R_W_C, d_cam)
+    m_world = torch.cross(c_world.unsqueeze(-2).expand_as(d_world), d_world, dim=-1)
+
+    # Form Plücker coordinates. Normalization for numerical stability.
+    plucker = torch.cat([d_world, m_world], dim=-1)
+    plucker = plucker / torch.norm(plucker[:, :, :, :3], dim=-1, keepdim=True)
+    return plucker
