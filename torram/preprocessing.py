@@ -15,25 +15,29 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
+def _extract_relative_path(f: Path, dataset_dir: Path, output_dir: Path) -> Path:
+    relative_path_to_dir = f.parent.relative_to(dataset_dir)
+    return output_dir / relative_path_to_dir / f.stem
+
+
 def _process_seq(
     args,
     process_function: Callable[[Path, Path, Any], List[Path]],
+    extract_output_dir: Callable[[Any, Path, Path], Path],
     **kwargs,
 ) -> List[Path]:
     f, dataset_dir, temp_dir = args
-
-    relative_path_to_dir = f.parent.relative_to(dataset_dir)
-    output_dir = Path(temp_dir) / relative_path_to_dir / f.stem
+    output_dir = extract_output_dir(f, dataset_dir, Path(temp_dir))
     output_dir.mkdir(parents=True, exist_ok=True)
-
-    return process_function(sequence_path=f, output_dir=output_dir, **kwargs)
+    return process_function(f, output_dir=output_dir, **kwargs)
 
 
 def preprocess_to_zip(
     dataset_dir: Path,
     output_file: Path,
-    list_sequences: Callable[[Path], List[Path]],
-    process_function: Callable[Concatenate[Path, Path, P], List[Path]],
+    list_sequences: Callable[[Path], List[Any]],
+    process_function: Callable[Concatenate[Any, Path, P], List[Path]],
+    extract_dir_function: Callable[[Any, Path, Path], Path],
     num_workers: int = mp.cpu_count(),
     cache_dir: Optional[Path] = None,
     debug: bool = False,
@@ -43,9 +47,9 @@ def preprocess_to_zip(
 
     List all sequence files in the dataset directory using the provided `list_sequences`
     function, which should take the dataset directory path as input and return a list
-    of sequence file paths.
+    of sequence elements.
 
-    def list_sequences(dataset_dir: Path) -> List[Path]:
+    def list_sequences(dataset_dir: Path) -> List[Any]:
         ...
 
     Processes each sequence file using the provided `process_function`, which should
@@ -55,11 +59,20 @@ def preprocess_to_zip(
     def process_function(sequence_path: Path, output_dir: Path, **kwargs) -> List[Path]:
         ...
 
+    A function to map the sequence element to an output directory can be
+    provided. By default, the output directory is constructed by preserving the
+    relative path of the sequence file within the dataset directory.
+
+    def extract_output_dir_from_seq(seq: Any, dataset_dir: Path, output_base_dir: Path) -> Path:
+        ...
+
     @param dataset_dir: Path to the dataset directory.
     @param output_file: Path to the output zip file.
     @param list_sequences: Function to list sequence files in the dataset directory.
     @param process_function: Function to preprocess each sequence file.
     @param cache_dir: Optional path to a cache directory for intermediate files.
+    @param extract_dir_function: Function to extract output directory from sequence element.
+    @param num_workers: Number of parallel worker processes to use.
     @param debug: Whether to enable debug logging and single-threaded processing.
     @param kwargs: Additional keyword arguments to pass to the preprocessing function.
     """
@@ -82,7 +95,12 @@ def preprocess_to_zip(
     # Process the files in parallel and store the results in the cache directory.
     logger.info(f"Processing {len(sequences)} sequences")
     args = [(f, dataset_dir, cache_dir_path) for f in sequences]
-    func = partial(_process_seq, process_function=process_function, **kwargs)
+    func = partial(
+        _process_seq,
+        process_function=process_function,
+        extract_output_dir=extract_dir_function,
+        **kwargs,
+    )
 
     if debug:
         processed = [func(arg) for arg in tqdm(args)]
@@ -108,11 +126,14 @@ def preprocess_main(
     list_sequences: Callable[[Path], List[Path]],
     process_function: Callable[Concatenate[Path, Path, P], List[Path]],
     parser: Optional[argparse.ArgumentParser] = None,
+    extract_dir_function: Callable[[Any, Path, Path], Path] = _extract_relative_path,
 ):
     """Main function to preprocess a dataset and store the results in a zip file.
 
     @param list_sequences: List sequence function (see preprocess_to_zip).
     @param process_function: Preprocessing function (see preprocess_to_zip).
+    @param parser: Optional argparse.ArgumentParser to use for command-line arguments.
+    @param extract_dir_function: Function to extract output directory from sequence element.
     """
     if parser is None:
         parser = argparse.ArgumentParser()
@@ -139,6 +160,7 @@ def preprocess_main(
         output_file=args.output_file,
         list_sequences=list_sequences,
         process_function=process_function,
+        extract_dir_function=extract_dir_function,
         cache_dir=args.cache_dir,
         num_workers=args.num_workers,
         debug=args.debug,
