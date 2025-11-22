@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from jaxtyping import Bool, Float, Int
 from kornia.geometry import transform_points
 from kornia.geometry.camera.perspective import project_points, unproject_points
-from kornia.geometry.depth import depth_to_3d_v2
 
 __all__ = ["crop_patches", "is_in_image", "box_including_2d", "pad", "warp", "warp_depth_image"]
 
@@ -110,6 +109,53 @@ def warp_depth_image(
         padding_mode="zeros",
         align_corners=True,
     )
+
+
+def depth_image_from_points(
+    points: torch.Tensor,
+    camera_matrix: torch.Tensor,
+    img_size: Tuple[int, int],
+    T_tgt_src: Optional[torch.Tensor] = None,
+) -> torch.Tensor:
+    """
+    Project a 3D point cloud into a target camera depth image.
+
+    @param points: 3D points in *source* camera coordinates (B, N, 3).
+    @param camera_matrix: target camera intrinsics (B, 3, 3).
+    @param img_size: (W_tgt, H_tgt)
+    @param T_tgt_src: transforms points from source → target camera (B, 4, 4)
+
+    @returns depth maps in target view (B, Ht, Wt)
+    """
+    B, _, _ = points.shape
+    Wt, Ht = img_size
+
+    # Transform points to target camera coordinates.
+    if T_tgt_src is not None:
+        pts_3d_tgt = transform_points(T_tgt_src, points)  # (B, N, 3)
+    else:
+        pts_3d_tgt = points
+    Z = pts_3d_tgt[..., 2]
+
+    # Project into target image, and extract valid points.
+    pts_2d = project_points(pts_3d_tgt, camera_matrix)  # (B, N, 2)
+    pts_2d = pts_2d.round().long()
+    # in_bounds = is_in_image(pts_2d, Wt, Ht) & (Z > 0)
+    in_bounds = is_in_image(pts_2d, Wt, Ht)
+
+    # Rasterize with z-buffer as they might be multiple points per pixel,
+    # we keep the closest one.
+    depth_out = torch.full((B, Ht, Wt), float("inf"), device=points.device)
+    for b in range(B):
+        m = in_bounds[b]
+        up = pts_2d[b, m, 0]
+        vp = pts_2d[b, m, 1]
+        zp = Z[b, m]
+        depth_out[b].index_put_((vp, up), zp, accumulate=False)
+
+    # Fill empty pixels with 0.
+    depth_out = torch.where(torch.isinf(depth_out), torch.zeros_like(depth_out), depth_out)
+    return depth_out
 
 
 def pad(
