@@ -89,3 +89,37 @@ def make_video_grid(
         grid_video[:, :, start_h : start_h + H, start_w : start_w + W] = videos[i]
 
     return grid_video
+
+
+def colorize_depth(
+    depth_img: Float[np.ndarray, "H W"],
+    cmap_name: str = "magma",
+    d_min: Optional[float] = None,
+    d_max: Optional[float] = None,
+) -> UInt8[np.ndarray, "H W 3"]:
+    """Convert a depth image to a color image using a colormap.
+
+    @param depth_img: Input depth image as a 2D numpy array.
+    @param cmap_name: Name of the matplotlib colormap to use.
+    @param d_min: Min depth value. If None, use the min of depth image.
+    @param d_max: Max depth value. If None, use the max of depth image.
+    @return: Colorized depth image.
+    """
+    depth = depth_img.astype(np.float32)
+
+    # Normalize to 0–1 (avoid division by zero)
+    dmin = depth.min() if d_min is None else d_min
+    dmax = depth.max() if d_max is None else d_max
+    if dmax > dmin:
+        depth_norm = (depth - dmin) / (dmax - dmin)
+    else:
+        depth_norm = np.zeros_like(depth)
+
+    # Apply colormap → returns RGBA in [0,1]
+    colormap = matplotlib.colormaps.get_cmap(cmap_name)
+    depth_color = colormap(depth_norm)[..., :3]  # drop alpha channel
+
+    # Convert to uint8 RGB
+    depth_color_uint8 = (depth_color * 255).astype(np.uint8)
+
+    return depth_color_uint8
