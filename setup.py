@@ -17,6 +17,7 @@ setup(
         "omegaconf",
         "matplotlib",
         "pytest",
+        "jaxtyping",
     ),
     author="Simon Schaefer",
     author_email="simon.k.schaefer@gmail.com",
