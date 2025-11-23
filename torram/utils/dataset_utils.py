@@ -8,6 +8,8 @@ import numpy as np
 import torch
 from torch.utils.data import Subset
 
+from torram.utils.ops import collect_nested_leaf_lengths, slice_stacked
+
 
 @dataclass
 class DataConfig:
@@ -79,7 +81,7 @@ def get_batch_from_dataset(
 
 
 def chunk_and_save(
-    data: Dict[str, torch.Tensor | np.ndarray],
+    data: Dict[str, torch.Tensor | np.ndarray | Dict],
     output_dir: Path,
     seq_len: int,
     stride: Optional[int] = None,
@@ -88,7 +90,7 @@ def chunk_and_save(
 ) -> List[Path]:
     """Chunk data into sequences of fixed length and save to disk.
 
-    @param data: Dictionary of data arrays to chunk. All arrays must have the same length.
+    @param data: Dictionary of data arrays to chunk. All leafs must have the same length.
     @param output_dir: Directory to save the chunked data.
     @param seq_len: Length of each chunked sequence.
     @param stride: Stride between chunks. If None, defaults to seq_len (non-overlapping).
@@ -100,28 +102,21 @@ def chunk_and_save(
         return []
     stride = seq_len if stride is None else stride
 
-    num_frames = len(next(iter(data.values())))
-    assert all(len(value) == num_frames for value in data.values())
+    leaf_lengths = collect_nested_leaf_lengths(data)
+    if len(set(leaf_lengths)) != 1:
+        raise ValueError(f"All data leafs must have the same length, got lengths: {leaf_lengths}")
+    num_frames = leaf_lengths[0]
 
     output_files = []
     for start_idx in range(0, num_frames, stride):
         end_idx = min(start_idx + seq_len, num_frames)
         if end_idx - start_idx < seq_len and not include_incomplete:
             continue
+        data_sliced = slice_stacked(data, start_idx, end_idx)
 
         output_file = output_dir / f"{start_idx:06d}_{end_idx:06d}{suffix}"
         output_file.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(
-            {
-                key: (
-                    value[start_idx:end_idx].clone()
-                    if isinstance(value, torch.Tensor)
-                    else value[start_idx:end_idx].copy()
-                )
-                for key, value in data.items()
-            },
-            output_file,
-        )
+        torch.save(data_sliced, output_file)
         output_files.append(output_file)
 
     return output_files
