@@ -1,5 +1,6 @@
 from typing import Optional, Tuple, Union
 
+import numpy as np
 import torch
 import torch.nn.functional
 import torch.nn.functional as F
@@ -112,49 +113,60 @@ def warp_depth_image(
 
 
 def depth_image_from_points(
-    points: torch.Tensor,
-    camera_matrix: torch.Tensor,
-    img_size: Tuple[int, int],
-    T_tgt_src: Optional[torch.Tensor] = None,
-) -> torch.Tensor:
+    points: Float[np.ndarray, "N 3"],
+    camera_matrix: Float[np.ndarray, "3 3"],
+    img_size: Tuple[int, int],  # (Wt, Ht)
+    T_tgt_src: Optional[Float[np.ndarray, "4 4"]] = None,
+) -> Float[np.ndarray, "Ht Wt"]:
     """
     Project a 3D point cloud into a target camera depth image.
 
-    @param points: 3D points in *source* camera coordinates (B, N, 3).
-    @param camera_matrix: target camera intrinsics (B, 3, 3).
+    @param points: 3D points in *source* camera coordinates.
+    @param camera_matrix: target camera intrinsics.
     @param img_size: (W_tgt, H_tgt)
-    @param T_tgt_src: transforms points from source → target camera (B, 4, 4)
-
-    @returns depth maps in target view (B, Ht, Wt)
+    @param T_tgt_src: transforms points from source → target camera.
+    @returns depth map in target view.
     """
-    B, _, _ = points.shape
     Wt, Ht = img_size
+    N = points.shape[0]
 
     # Transform points to target camera coordinates.
     if T_tgt_src is not None:
-        pts_3d_tgt = transform_points(T_tgt_src, points)  # (B, N, 3)
+        pts_h = np.concatenate([points, np.ones((N, 1))], axis=-1)  # (N,4)
+        pts_3d_tgt = (T_tgt_src @ pts_h.T).T[:, :3]
     else:
         pts_3d_tgt = points
-    Z = pts_3d_tgt[..., 2]
 
-    # Project into target image, and extract valid points.
-    pts_2d = project_points(pts_3d_tgt, camera_matrix)  # (B, N, 2)
-    pts_2d = pts_2d.round().long()
-    # in_bounds = is_in_image(pts_2d, Wt, Ht) & (Z > 0)
-    in_bounds = is_in_image(pts_2d, Wt, Ht)
+    Z = pts_3d_tgt[:, 2]
 
-    # Rasterize with z-buffer as they might be multiple points per pixel,
-    # we keep the closest one.
-    depth_out = torch.full((B, Ht, Wt), float("inf"), device=points.device)
-    for b in range(B):
-        m = in_bounds[b]
-        up = pts_2d[b, m, 0]
-        vp = pts_2d[b, m, 1]
-        zp = Z[b, m]
-        depth_out[b].index_put_((vp, up), zp, accumulate=False)
+    # Project points into image.
+    x = pts_3d_tgt[:, 0]
+    y = pts_3d_tgt[:, 1]
+    fx = camera_matrix[0, 0]
+    fy = camera_matrix[1, 1]
+    cx = camera_matrix[0, 2]
+    cy = camera_matrix[1, 2]
 
-    # Fill empty pixels with 0.
-    depth_out = torch.where(torch.isinf(depth_out), torch.zeros_like(depth_out), depth_out)
+    u = fx * x / Z + cx
+    v = fy * y / Z + cy
+
+    u = np.round(u).astype(np.int64)
+    v = np.round(v).astype(np.int64)
+
+    # Valid pixels (in front of camera and inside image).
+    valid = (Z > 0) & (u >= 0) & (u < Wt) & (v >= 0) & (v < Ht)
+
+    # Output depth map using z-buffering (rasterization).
+    depth_out = np.full((Ht, Wt), np.inf, dtype=float)
+    uu = u[valid]
+    vv = v[valid]
+    zz = Z[valid]
+    for px, py, pz in zip(uu, vv, zz):
+        if pz < depth_out[py, px]:
+            depth_out[py, px] = pz
+
+    # Replace empty pixels with 0.
+    depth_out[np.isinf(depth_out)] = 0.0
     return depth_out
 
 
