@@ -4,6 +4,54 @@ import smplx
 import torch
 from kornia.geometry import axis_angle_to_rotation_matrix, rotation_matrix_to_axis_angle
 
+SMPL_KINTREE = [
+    (0, 1),  # pelvis -> left_hip
+    (0, 2),  # pelvis -> right_hip
+    (0, 3),  # pelvis -> spine1
+    (1, 4),  # left_hip -> left_knee
+    (2, 5),  # right_hip -> right_knee
+    (3, 6),  # spine1 -> spine2
+    (4, 7),  # left_knee -> left_ankle
+    (5, 8),  # right_knee -> right_ankle
+    (6, 9),  # spine2 -> spine3
+    (7, 10),  # left_ankle -> left_foot
+    (8, 11),  # right_ankle -> right_foot
+    (9, 12),  # spine3 -> neck
+    (12, 15),  # neck -> head
+    (9, 13),  # spine3 -> left_shoulder
+    (9, 14),  # spine3 -> right shoulder
+    (13, 16),  # left_shoulder -> left_elbow
+    (14, 17),  # right_shoulder -> right_elbow
+    (16, 18),  # left_elbow -> left_wrist
+    (17, 19),  # right_elbow -> right_wrist
+    (18, 20),  # left_wrist -> left_hand
+    (19, 21),  # right_wrist -> right_hand
+]
+
+SMPL_EDGE_COLORS = [
+    (1.0, 0.0, 0.0),  # pelvis -> left_hip
+    (0.0, 1.0, 0.0),  # pelvis -> right_hip
+    (0.0, 0.0, 1.0),  # pelvis -> spine1
+    (1.0, 0.5, 0.0),  # left_hip -> left_knee
+    (0.0, 0.5, 1.0),  # right_hip -> right_knee
+    (0.5, 0.0, 1.0),  # spine1 -> spine2
+    (1.0, 1.0, 0.0),  # left_knee -> left_ankle
+    (0.0, 1.0, 1.0),  # right_knee -> right_ankle
+    (1.0, 0.0, 1.0),  # spine2 -> spine3
+    (0.5, 0.5, 0.0),  # left_ankle -> left_foot
+    (0.0, 0.5, 0.5),  # right_ankle -> right_foot
+    (0.5, 0.0, 0.5),  # spine3 -> neck
+    (0.25, 0.25, 0.25),  # neck -> head
+    (0.75, 0.0, 0.75),  # spine3 -> left_shoulder
+    (0.0, 0.75, 0.75),  # spine3 -> right shoulder
+    (0.75, 0.75, 0.0),  # left_shoulder -> left_elbow
+    (0.25, 0.75, 0.25),  # right_shoulder -> right_elbow
+    (0.75, 0.25, 0.25),  # left_elbow -> left_wrist
+    (0.25, 0.25, 0.75),  # right_elbow -> right_wrist
+    (0.5, 0.25, 0.75),  # left_wrist -> left_hand
+    (0.75, 0.25, 0.5),  # right_wrist -> right_hand
+]
+
 
 def transform_body_parameters(
     body_params: Dict[str, torch.Tensor],

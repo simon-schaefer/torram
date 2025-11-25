@@ -8,6 +8,8 @@ from jaxtyping import Bool, Float, UInt8
 from PIL import Image, ImageDraw, ImageFont
 from pyrr import Matrix44
 
+from torram.geometry.smpl import SMPL_EDGE_COLORS, SMPL_KINTREE
+
 
 def draw_transform(
     ctx: moderngl.Context,
@@ -89,50 +91,7 @@ def draw_smpl_skeleton(ctx: moderngl.Context, prog, joints: Float[np.ndarray, "N
     @param prog: The shader program to use for rendering.
     @param joints: An array of shape (N, 3) representing the joint positions.
     """
-
-    SMPL_KINTREE = [
-        (0, 1),  # pelvis -> left_hip
-        (0, 2),  # pelvis -> right_hip
-        (0, 3),  # pelvis -> spine1
-        (1, 4),  # left_hip -> left_knee
-        (2, 5),  # right_hip -> right_knee
-        (3, 6),  # spine1 -> spine2
-        (4, 7),  # left_knee -> left_ankle
-        (5, 8),  # right_knee -> right_ankle
-        (6, 9),  # spine2 -> spine3
-        (7, 10),  # left_ankle -> left_foot
-        (8, 11),  # right_ankle -> right_foot
-        (9, 12),  # spine3 -> neck
-        (12, 15),  # neck -> right_shoulder
-        (12, 17),  # neck -> left_shoulder
-        (12, 16),  # right_shoulder -> right_elbow
-        (16, 18),  # left_elbow -> left_wrist
-        (17, 19),  # right_elbow -> right_wrist
-        (18, 20),  # left_wrist -> left_hand
-        (19, 21),  # right_wrist -> right_hand
-    ]
-
-    SMPL_COLORS = [
-        (0.8, 0.3, 0.3),  # Red for left side
-        (0.3, 0.3, 0.8),  # Blue for right side
-        (0.5, 0.5, 0.5),  # Gray for spine
-        (0.8, 0.3, 0.3),  # Red for left side
-        (0.3, 0.3, 0.8),  # Blue for right side
-        (0.5, 0.5, 0.5),  # Gray for spine
-        (0.8, 0.3, 0.3),  # Red for left side
-        (0.3, 0.3, 0.8),  # Blue for right side
-        (0.5, 0.5, 0.5),  # Gray for spine
-        (0.8, 0.3, 0.3),  # Red for left side
-        (0.3, 0.3, 0.8),  # Blue for right side
-        (0.5, 0.5, 0.5),  # Gray for spine
-        (0.3, 0.3, 0.8),  # Blue for right shoulder
-        (0.8, 0.3, 0.3),  # Red for left shoulder
-        (0.3, 0.3, 0.8),  # Blue for right elbow
-        (0.8, 0.3, 0.3),  # Red for left elbow
-        (0.3, 0.3, 0.8),  # Blue for right wrist
-    ]
-
-    draw_skeleton(ctx, prog, joints, SMPL_KINTREE, SMPL_COLORS)
+    draw_skeleton(ctx, prog, joints, SMPL_KINTREE, SMPL_EDGE_COLORS)
 
 
 def draw_skeleton(

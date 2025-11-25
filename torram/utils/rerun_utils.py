@@ -3,7 +3,9 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import rerun as rr
 import trimesh
-from jaxtyping import Bool, Float, Int
+from jaxtyping import Bool, Float
+
+from torram.geometry.smpl import SMPL_EDGE_COLORS, SMPL_KINTREE
 
 
 def log_body_skeleton(
@@ -39,6 +41,30 @@ def log_body_skeleton(
 
     rr.log(f"{tag}/joints", rr.Points3D(joints_masked, radii=radius, colors=colors))
     rr.log(f"{tag}/skeleton", rr.LineStrips3D(edges, colors=edge_colors))
+
+
+def log_smpl_skeleton(
+    tag: str,
+    joints: Float[np.ndarray, "J 3"],
+    mask: Optional[Bool[np.ndarray, "J"]] = None,
+    radius: float = 0.01,
+) -> None:
+    """
+    Log an SMPL body skeleton in rerun.
+
+    @param tag: Entity path to log the skeleton to.
+    @param joints: 3D joint positions.
+    @param mask: Optional boolean mask indicating valid joints.
+    @param radius: Radius of the joint spheres.
+    """
+    log_body_skeleton(
+        tag,
+        joints,
+        connections=SMPL_KINTREE,
+        mask=mask,
+        radius=radius,
+        edge_colors=np.array(SMPL_EDGE_COLORS),
+    )
 
 
 def log_trimesh(
