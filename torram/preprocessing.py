@@ -123,8 +123,8 @@ def preprocess_to_zip(
 
 
 def preprocess_main(
-    list_sequences: Callable[[Path], List[Path]],
-    process_function: Callable[Concatenate[Path, Path, P], List[Path]],
+    list_sequences: Callable[[Path], List[Any]],
+    process_function: Callable[Concatenate[Any, Path, P], List[Path]],
     parser: Optional[argparse.ArgumentParser] = None,
     extract_dir_function: Callable[[Any, Path, Path], Path] = _extract_relative_path,
 ):
