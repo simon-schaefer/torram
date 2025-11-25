@@ -2,10 +2,12 @@ from typing import Optional
 
 import torch
 from jaxtyping import Float
+from kornia.geometry.conversions import axis_angle_to_rotation_matrix
 
 __all__ = [
     "geodesic_distance",
     "invert_homogeneous_transforms",
+    "rotation_matrix_from_two_vectors",
 ]
 
 
@@ -46,3 +48,48 @@ def invert_homogeneous_transforms(
     T_inv[..., :3, 3:] = -R_inv @ t
 
     return T_inv
+
+
+def rotation_matrix_from_two_vectors(
+    v1: Float[torch.Tensor, "B 3"],
+    v2: Float[torch.Tensor, "B 3"],
+) -> Float[torch.Tensor, "B 3 3"]:
+    """Compute rotation matrix that rotates v1 to v2.
+
+    @param v1: source vectors (B, 3).
+    @param v2: target vectors (B, 3).
+    @returns rotation matrices (B, 3, 3).
+    """
+    v1 = torch.nn.functional.normalize(v1)
+    v2 = torch.nn.functional.normalize(v2)
+    cross = torch.linalg.cross(v1, v2)
+    dot = torch.sum(v1 * v2, dim=-1)
+
+    if torch.any(dot < -0.999999):
+        mask = dot < -0.999999
+
+        axis = torch.zeros_like(cross)
+        angle = torch.zeros_like(dot)
+
+        # 180° rotation: choose an arbitrary perpendicular axis.
+        x = torch.zeros_like(v1[mask])
+        x[:, 0] = 1.0
+        axis[mask] = torch.nn.functional.normalize(torch.cross(v1[mask], x))
+        angle[mask] = torch.pi
+
+        if torch.any(torch.linalg.norm(axis[mask], dim=-1) < 1e-6):
+            submask = torch.linalg.norm(axis[mask], dim=-1) < 1e-6
+            v1_ = v1[mask][submask]
+            y = torch.zeros_like(v1_)
+            y[:, 1] = 1.0
+            axis[mask][submask] = torch.nn.functional.normalize(torch.cross(v1_, y))
+
+        # General case.
+        axis[~mask] = torch.nn.functional.normalize(cross[~mask])
+        angle[~mask] = torch.arccos(torch.clamp(dot[~mask], -1.0, 1.0))
+
+    else:
+        axis = torch.nn.functional.normalize(cross)
+        angle = torch.arccos(torch.clamp(dot, -1.0, 1.0))
+
+    return axis_angle_to_rotation_matrix(axis * angle[:, None])
