@@ -96,16 +96,25 @@ def train(
         Type[ExtendedDatasetSchema],
         Callable[[Any], torch.utils.data.Dataset],
     ],
-    device: torch.device | str | None = None,
 ) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", nargs="+")
-    parser.add_argument("--disable-wandb", action="store_true", help="Disable W&B logging.")
+    parser.add_argument(
+        "--disable-wandb",
+        action="store_true",
+        help="Disable W&B logging.",
+    )
     parser.add_argument(
         "--checkpoint",
         type=str,
         default=None,
         help="Path to a checkpoint to resume training.",
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="Device to use for training.",
     )
     parser.add_argument("--debug", action="store_true")
     args, args_unknown = parser.parse_known_args()
@@ -122,10 +131,10 @@ def train(
     logger.info(f"Using config: \n{OmegaConf.to_yaml(config)}")
 
     # Initialize the trainer/model and its default config parameters based on the model type.
-    if device is None:
+    if args.device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    elif isinstance(device, str):
-        device = torch.device(device)
+    else:
+        device = torch.device(args.device)
     trainer = trainer_class(config)
     trainer.to(device)
 

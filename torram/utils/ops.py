@@ -57,11 +57,17 @@ def diag_last(x: Num[torch.Tensor, "... N"]) -> Num[torch.Tensor, "... N N"]:
 
 
 def to_device(*args, device: torch.device) -> List[torch.Tensor]:
-    return [arg.to(device) if isinstance(arg, torch.Tensor) else arg for arg in args]
+    return [
+        arg.to(device) if (isinstance(arg, torch.Tensor) or hasattr(args, "to")) else arg
+        for arg in args
+    ]
 
 
 def to_device_dict(d: dict, device: torch.device) -> dict:
-    return {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in d.items()}
+    return {
+        k: v.to(device) if (isinstance(v, torch.Tensor) or hasattr(v, "to")) else v
+        for k, v in d.items()
+    }
 
 
 def stack_nested(xs):
