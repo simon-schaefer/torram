@@ -16,6 +16,7 @@ from torram.utils.dataset_utils import (
     DataConfig,
     DatasetSchema,
     ExtendedDatasetSchema,
+    get_collate_fn,
     get_train_test_split_w_config,
 )
 from torram.utils.ops import to_device_dict
@@ -139,6 +140,7 @@ def train(
     # Setup dataset and dataloader.
     dataset = dataset_class(getattr(config, "dataset", None))
     dataset = cast(torch.utils.data.Dataset, dataset)
+    collate_fn = get_collate_fn(dataset)
     dataset_train, dataset_test = get_train_test_split_w_config(dataset, config.data)
     assert len(dataset_train) > 0, "Training dataset is empty."
     assert len(dataset_test) > 0, "Testing dataset is empty."
@@ -148,12 +150,14 @@ def train(
         num_workers=config.data.num_workers,
         batch_size=config.data.batch_size,
         shuffle=True,
+        collate_fn=collate_fn,
     )
     dataloader_test = DataLoader(
         dataset_test,
         num_workers=config.data.num_workers,
         batch_size=config.data.batch_size,
         shuffle=False,
+        collate_fn=collate_fn,
     )
     logger.info(f"Training samples: {len(dataset_train)}, Testing samples: {len(dataset_test)}")
 
@@ -233,6 +237,10 @@ def train(
                 num_test_samples = len(dataloader_test)
                 loss_val_dict = {k: v / num_test_samples for k, v in loss_val_dict.items()}
                 metrics_val_dict = {k: v / num_test_samples for k, v in metrics_val_dict.items()}
+
+                logger.debug(f"Training Metrics dict: {metrics_train_dict}")
+                logger.debug(f"Validation Loss dict: {loss_val_dict}")
+                logger.info(f"Validation Metrics dict: {metrics_val_dict}")
                 wandb.log(
                     {
                         **{f"metrics/train/{k}": v for k, v in metrics_train_dict.items()},

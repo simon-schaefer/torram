@@ -33,6 +33,10 @@ class ExtendedDatasetSchema(DatasetSchema, Protocol):
         """Return train and test splits of the dataset."""
         raise NotImplementedError
 
+    def collate_fn(self, batch: List[Any]) -> Any:
+        """Collate function to combine a list of samples into a batch."""
+        raise NotImplementedError
+
 
 def train_test_split(dataset, test_ratio: float, seed: int = 42) -> Tuple[Subset, Subset]:
     total_size = len(dataset)
@@ -175,7 +179,22 @@ def get_train_test_split_w_config(
             test_ratio=config.test_split,
         )
     elif hasattr(dataset, "get_train_test_split"):
-        dataset_train, dataset_test = dataset.get_train_test_split()
+        dataset_train, dataset_test = getattr(dataset, "get_train_test_split")()
     else:
         dataset_train, dataset_test = train_test_split(dataset, test_ratio=config.test_split)
     return dataset_train, dataset_test
+
+
+def get_collate_fn(dataset: torch.utils.data.Dataset):
+    """Get the collate function for a dataset, if it has one.
+
+    @param dataset: The dataset to get the collate function from.
+    """
+    if isinstance(dataset, torch.utils.data.ConcatDataset):
+        # Check if all constituent datasets have the same collate_fn.
+        collate_fns = {get_collate_fn(ds) for ds in dataset.datasets}
+        if len(collate_fns) != 1:
+            raise ValueError("All datasets in ConcatDataset must have the same collate_fn.")
+        return collate_fns.pop()
+
+    return getattr(dataset, "collate_fn", None)
