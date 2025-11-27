@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta" # If not defined, then legacy behavior c
 
 [project]
 name = "torram"
-version = "1.5.14"
+version = "1.5.15"
 description = "Machine Learning essential tools for PyTorch."
 readme = "README.md"
 license = {text = "MIT License"}

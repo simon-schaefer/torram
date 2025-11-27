@@ -30,7 +30,7 @@ def load_checkpoint_from_wandb(
     # Either use the provided step or use the largest step from the run.
     if step is None:
         files = run.files()
-        checkpoint_files = [f for f in files if f.name.endswith(".pt")]
+        checkpoint_files = [f for f in files if f.name.endswith(".pt") or f.name.endswith(".pth")]
         checkpoint_files.sort(key=lambda f: f.updated_at, reverse=True)
         if not checkpoint_files:
             raise ValueError("No checkpoint files found in the W&B run.")
