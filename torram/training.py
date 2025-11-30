@@ -3,7 +3,7 @@ import logging
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Protocol, Type, Union, cast
+from typing import Any, Callable, Dict, Protocol, Sized, Type, Union, cast
 
 import torch
 import torch.utils.data
@@ -150,9 +150,10 @@ def train(
     dataset = dataset_class(getattr(config, "dataset", None))
     dataset = cast(torch.utils.data.Dataset, dataset)
     collate_fn = get_collate_fn(dataset)
-    dataset_train, dataset_test = get_train_test_split_w_config(dataset, config.data)
-    assert len(dataset_train) > 0, "Training dataset is empty."
-    assert len(dataset_test) > 0, "Testing dataset is empty."
+    dataset_train, datasets_test = get_train_test_split_w_config(dataset, config.data)
+    assert isinstance(dataset_train, Sized) and len(dataset_train) > 0, "Training dataset is empty."
+    assert len(datasets_test) > 0, "No testing datasets found."
+    assert all((isinstance(ds, Sized) and len(ds)) > 0 for ds in datasets_test.values())
 
     dataloader_train = DataLoader(
         dataset_train,
@@ -161,14 +162,19 @@ def train(
         shuffle=True,
         collate_fn=collate_fn,
     )
-    dataloader_test = DataLoader(
-        dataset_test,
-        num_workers=config.data.num_workers,
-        batch_size=config.data.batch_size,
-        shuffle=False,
-        collate_fn=collate_fn,
-    )
-    logger.info(f"Training samples: {len(dataset_train)}, Testing samples: {len(dataset_test)}")
+    dataloaders_test = {
+        key: DataLoader(
+            ds,
+            num_workers=config.data.num_workers,
+            batch_size=config.data.batch_size,
+            shuffle=False,
+            collate_fn=collate_fn,
+            drop_last=False,
+        )
+        for key, ds in datasets_test.items()
+    }
+    dataset_test_sizes = {key: len(ds) for key, ds in datasets_test.items()}
+    logger.info(f"Training samples: {len(dataset_train)}, Testing samples: {dataset_test_sizes}")
 
     # Setup the optimizer.
     optimizer = trainer.get_optimizer()
@@ -222,30 +228,35 @@ def train(
                 metrics_train_dict = trainer.evaluate(batch)
                 vis_train = trainer.visualize(batch, n=4)
 
-                loss_val_dict = defaultdict(float)
-                metrics_val_dict = defaultdict(float)
+                loss_val_dict, metrics_val_dict = {}, {}
                 vis_test = {}
-                for bi, batch in enumerate(dataloader_test):
-                    batch = to_device_dict(batch, device=device)
-                    if bi == 0:
-                        vis_batch = trainer.visualize(batch, n=4)
-                        vis_test.update(vis_batch)
+                for dataset_name, dataloader_test in dataloaders_test.items():
+                    loss_val_ds = defaultdict(float)
+                    metrics_val_ds = defaultdict(float)
+                    num_samples = len(dataloader_test)
+                    prefix = f"{dataset_name}/" if len(dataloaders_test) > 1 else ""
 
-                    with torch.no_grad():
-                        loss_dict = trainer.compute_loss(batch)
-                    loss = sum(loss_dict.values())
-                    loss = cast(torch.Tensor, loss)
-                    for k, v in loss_dict.items():
-                        loss_val_dict[k] += v.item()
+                    for bi, batch in enumerate(dataloader_test):
+                        batch = to_device_dict(batch, device=device)
+                        if bi == 0:
+                            vis_batch = trainer.visualize(batch, n=4)
+                            vis_batch = {f"{prefix}{k}": v for k, v in vis_batch.items()}
+                            vis_test.update(vis_batch)
 
-                    metrics_dict = trainer.evaluate(batch)
-                    for k, v in metrics_dict.items():
-                        metrics_val_dict[k] += v
+                        with torch.no_grad():
+                            loss_dict = trainer.compute_loss(batch)
+                        loss = sum(loss_dict.values())
+                        loss = cast(torch.Tensor, loss)
+                        for k, v in loss_dict.items():
+                            loss_val_ds[f"{prefix}{k}"] += v.item()
 
-                loss_val_dict["epoch"] = sum(loss_val_dict.values())
-                num_test_samples = len(dataloader_test)
-                loss_val_dict = {k: v / num_test_samples for k, v in loss_val_dict.items()}
-                metrics_val_dict = {k: v / num_test_samples for k, v in metrics_val_dict.items()}
+                        metrics_dict = trainer.evaluate(batch)
+                        for k, v in metrics_dict.items():
+                            metrics_val_ds[f"{prefix}{k}"] += v
+
+                    loss_val_ds["epoch"] = sum(loss_val_ds.values())
+                    loss_val_dict.update({k: v / num_samples for k, v in loss_val_ds.items()})
+                    metrics_val_dict.update({k: v / num_samples for k, v in metrics_val_ds.items()})
 
                 logger.debug(f"Training Metrics dict: {metrics_train_dict}")
                 logger.debug(f"Validation Loss dict: {loss_val_dict}")

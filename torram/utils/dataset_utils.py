@@ -2,7 +2,7 @@ import logging
 import random
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Protocol, Tuple, Union, cast
+from typing import Any, Dict, List, Mapping, Optional, Protocol, Sized, Tuple, Union, cast
 
 import numpy as np
 import torch
@@ -29,7 +29,12 @@ class DatasetSchema(Protocol):
 
 class ExtendedDatasetSchema(DatasetSchema, Protocol):
 
-    def get_train_test_split(self) -> tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
+    def get_train_test_split(
+        self,
+    ) -> Tuple[
+        torch.utils.data.Dataset,
+        Union[torch.utils.data.Dataset, Dict[str, torch.utils.data.Dataset]],
+    ]:
         """Return train and test splits of the dataset."""
         raise NotImplementedError
 
@@ -130,7 +135,7 @@ def train_test_split_concat_dataset(
     dataset: torch.utils.data.ConcatDataset,
     test_ratio: float,
     seed: int = 42,
-) -> Tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
+) -> Tuple[torch.utils.data.Dataset, Dict[str, torch.utils.data.Dataset]]:
     """Split a ConcatDataset into train and test sets.
 
     If any of the constituent datasets have a predefined train/test split method,
@@ -141,48 +146,67 @@ def train_test_split_concat_dataset(
     @param test_ratio: The ratio of the dataset to use for testing.
     @param seed: Random seed for splitting.
     """
+    logger = logging.getLogger(__name__)
     has_predefined_splits = any(hasattr(ds, "get_train_test_split") for ds in dataset.datasets)
 
     # If no datasets have predefined splits, do a random split on the concatenated dataset.
     if not has_predefined_splits:
-        return train_test_split(dataset, test_ratio, seed)
+        train_ds, test_ds = train_test_split(dataset, test_ratio, seed)
+        return train_ds, {"": test_ds} if len(test_ds) > 0 else {}
 
     # If some datasets have predefined splits, use them. All datasets with no predefined splits
     # will be included in the training set only.
     train_datasets = []
-    test_datasets = []
+    test_datasets = {}
     for ds in dataset.datasets:
         if hasattr(ds, "get_train_test_split"):
             train_ds, test_ds = ds.get_train_test_split()
             train_datasets.append(train_ds)
-            test_datasets.append(test_ds)
+            if not isinstance(test_ds, dict):
+                test_ds = {"": test_ds}
+
+            for k in test_ds:
+                assert k not in test_datasets, f"Duplicate test dataset key {k} found."
+
+            test_datasets.update({k: v for k, v in test_ds.items() if len(v) > 0})
+
         else:
+            logger.debug(f"Dataset {ds} wo/ predefined split, including as training set only.")
             train_datasets.append(ds)
 
     train_ds = torch.utils.data.ConcatDataset(train_datasets)
-    test_ds = torch.utils.data.ConcatDataset(test_datasets)
-    return train_ds, test_ds
+    return train_ds, test_datasets
 
 
 def get_train_test_split_w_config(
     dataset: torch.utils.data.Dataset,
     config: DataConfig,
-) -> Tuple[torch.utils.data.Dataset, torch.utils.data.Dataset]:
+) -> Tuple[torch.utils.data.Dataset, Mapping[str, torch.utils.data.Dataset]]:
     """Get train and test splits of a dataset based on the provided configuration.
 
     @param dataset: The dataset to split.
     @param config: DataConfig containing the test split ratio.
     """
     if isinstance(dataset, torch.utils.data.ConcatDataset):
-        dataset_train, dataset_test = train_test_split_concat_dataset(
+        dataset_train, datasets_test = train_test_split_concat_dataset(
             dataset=dataset,
             test_ratio=config.test_split,
         )
     elif hasattr(dataset, "get_train_test_split"):
-        dataset_train, dataset_test = getattr(dataset, "get_train_test_split")()
+        dataset_train, datasets_test = getattr(dataset, "get_train_test_split")()
+        if not isinstance(datasets_test, dict):
+            datasets_test = {"": datasets_test}
     else:
-        dataset_train, dataset_test = train_test_split(dataset, test_ratio=config.test_split)
-    return dataset_train, dataset_test
+        dataset_train, dataset_test_ = train_test_split(dataset, test_ratio=config.test_split)
+        dataset_test_ = cast(torch.utils.data.Dataset, dataset_test_)
+        datasets_test = {"": dataset_test_}
+
+    datasets_test = {
+        k: v
+        for k, v in datasets_test.items()
+        if (isinstance(v, Sized) and isinstance(v, torch.utils.data.Dataset) and len(v) > 0)
+    }
+    return dataset_train, datasets_test
 
 
 def get_collate_fn(dataset: torch.utils.data.Dataset):
@@ -192,9 +216,15 @@ def get_collate_fn(dataset: torch.utils.data.Dataset):
     """
     if isinstance(dataset, torch.utils.data.ConcatDataset):
         # Check if all constituent datasets have the same collate_fn.
-        collate_fns = {get_collate_fn(ds) for ds in dataset.datasets}
-        if len(collate_fns) != 1:
+        collate_fns = [get_collate_fn(ds) for ds in dataset.datasets]
+        assert len(collate_fns) > 0
+        if (
+            all(collate_fns[0] is cf for cf in collate_fns)
+            or all((cf is None for cf in collate_fns))
+            or all((cf.__code__ == collate_fns[0].__code__ for cf in collate_fns))
+        ):
+            return collate_fns.pop()
+        else:
             raise ValueError("All datasets in ConcatDataset must have the same collate_fn.")
-        return collate_fns.pop()
 
     return getattr(dataset, "collate_fn", None)
