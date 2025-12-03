@@ -13,10 +13,10 @@ from torch.utils.data import DataLoader
 
 from torram.utils.config import read_config
 from torram.utils.dataset_utils import (
+    CustomSchemeDataLoader,
     DataConfig,
     DatasetSchema,
     ExtendedDatasetSchema,
-    get_collate_fn,
     get_train_test_split_w_config,
 )
 from torram.utils.ops import to_device_dict
@@ -149,26 +149,23 @@ def train(
     # Setup dataset and dataloader.
     dataset = dataset_class(getattr(config, "dataset", None))
     dataset = cast(torch.utils.data.Dataset, dataset)
-    collate_fn = get_collate_fn(dataset)
     dataset_train, datasets_test = get_train_test_split_w_config(dataset, config.data)
     assert isinstance(dataset_train, Sized) and len(dataset_train) > 0, "Training dataset is empty."
     assert len(datasets_test) > 0, "No testing datasets found."
     assert all((isinstance(ds, Sized) and len(ds)) > 0 for ds in datasets_test.values())
 
-    dataloader_train = DataLoader(
+    dataloader_train = CustomSchemeDataLoader(
         dataset_train,
         num_workers=config.data.num_workers,
         batch_size=config.data.batch_size,
         shuffle=True,
-        collate_fn=collate_fn,
     )
     dataloaders_test = {
-        key: DataLoader(
+        key: CustomSchemeDataLoader(
             ds,
             num_workers=config.data.num_workers,
             batch_size=config.data.batch_size,
             shuffle=False,
-            collate_fn=collate_fn,
             drop_last=False,
         )
         for key, ds in datasets_test.items()
@@ -221,13 +218,16 @@ def train(
             loss_log_dict = {k: round(v.item(), 4) for k, v in loss_dict.items()}
             logger.debug(f"Loss dict: {loss_log_dict}")
 
+            # Evaluation and visualization on train / test datasets.
             if global_step % config.logging.num_test_iterations == 0:
                 logger.info(f"Epoch {epoch}, Step {global_step}, Train Loss: {loss.item()}")
                 trainer.eval()
 
+                # Evaluate on training batch.
                 metrics_train_dict = trainer.evaluate(batch)
                 vis_train = trainer.visualize(batch, n=4)
 
+                # Evaluate on test datasets.
                 loss_val_dict, metrics_val_dict = {}, {}
                 vis_test = {}
                 for dataset_name, dataloader_test in dataloaders_test.items():
@@ -273,6 +273,7 @@ def train(
                 )
                 trainer.train()
 
+            # Save checkpoint of model and training state.
             if global_step % config.logging.num_ckpt_iterations == 0 and not args.disable_wandb:
                 assert wandb.run is not None, "WandB run must be initialized to save checkpoints."
                 logger.info(f"Saving checkpoint at step {global_step}")
@@ -286,6 +287,11 @@ def train(
                 checkpoint_path = os.path.join(wandb.run.dir, f"checkpoint_{global_step:09d}.pt")
                 torch.save(state, checkpoint_path)
                 wandb.save(checkpoint_path)
+
+            # Update data loader iterations.
+            dataloader_train.set_iteration(global_step)
+            for dataloader_test in dataloaders_test.values():
+                dataloader_test.set_iteration(global_step)
 
         avg_loss = total_loss / len(dataloader_train)
         wandb.log({"training/epoch": epoch, "loss/train/epoch": avg_loss}, step=global_step)

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Mapping, Optional, Protocol, Sized, Tuple, U
 
 import numpy as np
 import torch
-from torch.utils.data import Subset
+from torch.utils.data import DataLoader, Dataset, Subset
 
 from torram.utils.ops import collect_nested_leaf_lengths, slice_stacked
 
@@ -42,6 +42,31 @@ class ExtendedDatasetSchema(DatasetSchema, Protocol):
         """Collate function to combine a list of samples into a batch."""
         raise NotImplementedError
 
+    def augment_fn(self, batch: Any, iteration: int) -> Any:
+        """Augmentation function to augment a batch based on the training iteration."""
+        raise NotImplementedError
+
+
+class CustomSchemeDataLoader(DataLoader):
+    """DataLoader that loads the functions defined in the dataset schema."""
+
+    def __init__(self, dataset: Dataset, **kwargs):
+        assert "collate_fn" not in kwargs, "collate_fn should not be passed explicitly."
+        collate_fn = get_collate_fn(dataset)
+        super().__init__(dataset=dataset, collate_fn=collate_fn, **kwargs)
+
+        self.augment_fn = get_augment_fn(dataset)
+        self.iteration = 0
+
+    def __iter__(self):
+        for batch in super().__iter__():
+            if self.augment_fn:
+                batch = self.augment_fn(batch, self.iteration)
+            yield batch
+
+    def set_iteration(self, iteration: int) -> None:
+        self.iteration = iteration
+
 
 def train_test_split(dataset, test_ratio: float, seed: int = 42) -> Tuple[Subset, Subset]:
     total_size = len(dataset)
@@ -64,14 +89,14 @@ def get_batch_from_dataset(
     dataset,
     batch_size: int,
     indices: Optional[List[int]] = None,
-    collate_fn=None,
+    augment_index: int = 0,
 ):
     """Get a batch from a dataset with the given batch size.
 
     @param dataset: The dataset to sample from.
     @param batch_size: The number of samples in the batch.
     @param indices: Optional list of indices to sample. If None, random indices will be chosen.
-    @param collate_fn: Optional function to collate the batch.
+    @param augment_index: The iteration index for augmentation (if applicable).
     """
     if indices is None:
         indices = list(range(len(dataset)))
@@ -79,14 +104,23 @@ def get_batch_from_dataset(
     batch = [dataset[i] for i in indices]
 
     # Collate batch (assuming each item is a dict).
+    collate_fn = get_collate_fn(dataset)
     if collate_fn:
-        return collate_fn(batch)
+        batch = collate_fn(batch)
 
     # Default collation, stack values by key.
-    collated_batch = {}
-    for key in batch[0].keys():
-        collated_batch[key] = [item[key] for item in batch]
-    return {key: torch.stack(collated_batch[key], dim=0) for key in collated_batch}
+    else:
+        collated_batch = {}
+        for key in batch[0].keys():
+            collated_batch[key] = [item[key] for item in batch]
+        batch = {key: torch.stack(collated_batch[key], dim=0) for key in collated_batch}
+
+    # Augment batch if augment function is defined.
+    augment_fn = get_augment_fn(dataset)
+    if augment_fn:
+        batch = augment_fn(batch, iteration=augment_index)
+
+    return batch
 
 
 def chunk_and_save(
@@ -209,22 +243,42 @@ def get_train_test_split_w_config(
     return dataset_train, datasets_test
 
 
+def _get_fn_from_dataset(dataset, fn_name: str):
+    """Get a function from a dataset, if it has one.
+
+    @param dataset: The dataset to get the function from.
+    @param fn_name: The name of the function to get.
+    """
+    if isinstance(dataset, torch.utils.data.ConcatDataset):
+        # Check if all constituent datasets have the same function.
+        fns = [_get_fn_from_dataset(ds, fn_name) for ds in dataset.datasets]
+        assert len(fns) > 0
+        if (
+            all(fns[0] is cf for cf in fns)
+            or all((cf is None for cf in fns))
+            or all((cf.__code__ == fns[0].__code__ for cf in fns))
+        ):
+            return fns.pop()
+        else:
+            raise ValueError(f"All datasets in ConcatDataset must have the same {fn_name}.")
+
+    if isinstance(dataset, torch.utils.data.Subset):
+        return _get_fn_from_dataset(dataset.dataset, fn_name)
+
+    return getattr(dataset, fn_name, None)
+
+
 def get_collate_fn(dataset: torch.utils.data.Dataset):
     """Get the collate function for a dataset, if it has one.
 
     @param dataset: The dataset to get the collate function from.
     """
-    if isinstance(dataset, torch.utils.data.ConcatDataset):
-        # Check if all constituent datasets have the same collate_fn.
-        collate_fns = [get_collate_fn(ds) for ds in dataset.datasets]
-        assert len(collate_fns) > 0
-        if (
-            all(collate_fns[0] is cf for cf in collate_fns)
-            or all((cf is None for cf in collate_fns))
-            or all((cf.__code__ == collate_fns[0].__code__ for cf in collate_fns))
-        ):
-            return collate_fns.pop()
-        else:
-            raise ValueError("All datasets in ConcatDataset must have the same collate_fn.")
+    return _get_fn_from_dataset(dataset, "collate_fn")
 
-    return getattr(dataset, "collate_fn", None)
+
+def get_augment_fn(dataset: torch.utils.data.Dataset):
+    """Get the augment function for a dataset, if it has one.
+
+    @param dataset: The dataset to get the augment function from.
+    """
+    return _get_fn_from_dataset(dataset, "augment_fn")
