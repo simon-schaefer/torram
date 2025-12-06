@@ -13,7 +13,7 @@ def log_body_skeleton(
     joints: Float[np.ndarray, "J 3"],
     connections: List[Tuple[int, int]],
     mask: Optional[Bool[np.ndarray, "J"]] = None,
-    radius: float = 0.01,
+    radius: float = 0.03,
     colors: Union[Float[np.ndarray, "J 3"], Float[np.ndarray, "3"], None] = None,
     edge_colors: Union[Float[np.ndarray, "E 3"], Float[np.ndarray, "3"], None] = None,
 ) -> None:
@@ -47,7 +47,8 @@ def log_smpl_skeleton(
     tag: str,
     joints: Float[np.ndarray, "J 3"],
     mask: Optional[Bool[np.ndarray, "J"]] = None,
-    radius: float = 0.01,
+    radius: float = 0.03,
+    foot_contacts: Optional[Bool[np.ndarray, "2"]] = None,
 ) -> None:
     """
     Log an SMPL body skeleton in rerun.
@@ -56,7 +57,18 @@ def log_smpl_skeleton(
     @param joints: 3D joint positions.
     @param mask: Optional boolean mask indicating valid joints.
     @param radius: Radius of the joint spheres.
+    @param foot_contacts: Optional boolean array indicating foot contact states (right, left).
     """
+    colors = np.ones((joints.shape[0], 3)) * 0.5
+
+    if foot_contacts is not None:
+        assert foot_contacts.shape == (2,)
+        contact_color = np.array([1.0, 0.0, 0.0])
+        if foot_contacts[0]:
+            colors[11] = contact_color  # right_foot
+        if foot_contacts[1]:
+            colors[10] = contact_color  # left_foot
+
     log_body_skeleton(
         tag,
         joints,
@@ -64,6 +76,7 @@ def log_smpl_skeleton(
         mask=mask,
         radius=radius,
         edge_colors=np.array(SMPL_EDGE_COLORS),
+        colors=colors,
     )
 
 
