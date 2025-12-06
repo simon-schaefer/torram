@@ -52,6 +52,31 @@ SMPL_EDGE_COLORS = [
     (0.75, 0.25, 0.5),  # right_wrist -> right_hand
 ]
 
+SMPL_JOINT_NAMES = {
+    "hips": 0,
+    "leftUpLeg": 1,
+    "rightUpLeg": 2,
+    "spine": 3,
+    "leftLeg": 4,
+    "rightLeg": 5,
+    "spine1": 6,
+    "leftFoot": 7,
+    "rightFoot": 8,
+    "spine2": 9,
+    "leftToeBase": 10,
+    "rightToeBase": 11,
+    "neck": 12,
+    "leftShoulder": 13,
+    "rightShoulder": 14,
+    "head": 15,
+    "leftArm": 16,
+    "rightArm": 17,
+    "leftForeArm": 18,
+    "rightForeArm": 19,
+    "leftHand": 20,
+    "rightHand": 21,
+}
+
 
 def transform_body_parameters(
     body_params: Dict[str, torch.Tensor],

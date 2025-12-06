@@ -5,7 +5,7 @@ import rerun as rr
 import trimesh
 from jaxtyping import Bool, Float
 
-from torram.geometry.smpl import SMPL_EDGE_COLORS, SMPL_KINTREE
+from torram.geometry.smpl import SMPL_EDGE_COLORS, SMPL_JOINT_NAMES, SMPL_KINTREE
 
 
 def log_body_skeleton(
@@ -65,9 +65,11 @@ def log_smpl_skeleton(
         assert foot_contacts.shape == (2,)
         contact_color = np.array([1.0, 0.0, 0.0])
         if foot_contacts[0]:
-            colors[11] = contact_color  # right_foot
+            foot_idx = SMPL_JOINT_NAMES["rightToeBase"]
+            colors[foot_idx] = contact_color
         if foot_contacts[1]:
-            colors[10] = contact_color  # left_foot
+            foot_idx = SMPL_JOINT_NAMES["leftToeBase"]
+            colors[foot_idx] = contact_color
 
     log_body_skeleton(
         tag,
