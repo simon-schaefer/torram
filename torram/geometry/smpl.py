@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Tuple
 
 import smplx
 import torch
@@ -146,3 +146,57 @@ def transform_body_parameters(
     body_params_out["global_orient"] = rotation_matrix_to_axis_angle(R_out)
     body_params_out["transl"] = t_out
     return body_params_out
+
+
+def complete_smplx_params(
+    smplx_params: Dict[str, torch.Tensor],
+    base_shape: Tuple[int, ...],
+    add_masks: bool = False,
+) -> Dict[str, torch.Tensor]:
+    """Completes missing SMPL-X parameters with zeros.
+
+    @params smplx_params: Dictionary of SMPL-X body parameters.
+    @params base_shape: Base shape of the parameters (excluding the last dimension).
+    @params add_masks: Whether to add masks for each parameter, indicating which parameters were originally present.
+    @return: Completed body parameters.
+    """
+    assert len(smplx_params) > 0, "SMPL-X parameters dictionary is empty."
+
+    for key in [
+        "jaw_pose",
+        "leye_pose",
+        "reye_pose",
+        "left_hand_pose",
+        "right_hand_pose",
+        "expression",
+        "betas",
+        "global_orient",
+        "body_pose",
+        "transl",
+    ]:
+        key_mask = f"{key}_mask"
+        if key in smplx_params:
+            shape = smplx_params[key].shape
+            assert (
+                shape[:-1] == base_shape
+            ), f"SMPL-X parameter '{key}' has incompatible shape {shape} with base shape {base_shape}."
+            if add_masks:
+                dim = smplx_params[key].shape[-1]
+                smplx_params[key_mask] = torch.ones((*base_shape, dim), dtype=torch.bool)
+            continue
+
+        if key in ["left_hand_pose", "right_hand_pose"]:
+            dim = 45
+        elif key == "body_pose":
+            dim = 63
+        elif key in ["jaw_pose", "leye_pose", "reye_pose"]:
+            dim = 3
+        elif key in ["transl", "global_orient"]:
+            dim = 3
+        else:
+            dim = 10
+        smplx_params[key] = torch.zeros((*base_shape, dim), dtype=torch.float32)
+        if add_masks:
+            smplx_params[key_mask] = torch.zeros((*base_shape, dim), dtype=torch.bool)
+
+    return smplx_params
