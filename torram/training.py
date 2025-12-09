@@ -3,13 +3,12 @@ import logging
 import os
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Protocol, Sized, Type, Union, cast
+from typing import Any, Callable, Dict, Optional, Protocol, Sized, Type, Union, cast
 
 import torch
 import torch.utils.data
 import wandb
 from omegaconf import OmegaConf
-from torch.utils.data import DataLoader
 
 from torram.utils.config import read_config
 from torram.utils.dataset_utils import (
@@ -28,6 +27,7 @@ class OptimizerConfig:
     num_epochs: int
     lr: float
     accumulate_grad_batches: int = 1
+    clip_grad_norm: Optional[float] = None
 
 
 @dataclass
@@ -203,6 +203,10 @@ def train(
 
             optimizer.zero_grad()
             loss.backward()
+            if config.optimizer.clip_grad_norm is not None:
+                assert config.optimizer.clip_grad_norm > 0.0
+                grad_norm = config.optimizer.clip_grad_norm
+                torch.nn.utils.clip_grad_norm_(trainer.parameters(), max_norm=grad_norm)
             optimizer.step()
             total_loss += loss.item()
 
