@@ -192,6 +192,7 @@ def train(
 
     # Run the training loop.
     trainer.train()
+    accumulate_steps = config.optimizer.accumulate_grad_batches
     for epoch in range(config.optimizer.num_epochs):
         total_loss = 0.0
         for batch in dataloader_train:
@@ -201,26 +202,33 @@ def train(
             loss = sum(loss_dict.values())
             loss = cast(torch.Tensor, loss)
 
-            optimizer.zero_grad()
-            loss.backward()
-            if config.optimizer.clip_grad_norm is not None:
-                assert config.optimizer.clip_grad_norm > 0.0
-                grad_norm = config.optimizer.clip_grad_norm
-                torch.nn.utils.clip_grad_norm_(trainer.parameters(), max_norm=grad_norm)
-            optimizer.step()
+            scaled_loss = loss / config.optimizer.accumulate_grad_batches
+            scaled_loss.backward()
             total_loss += loss.item()
 
-            global_step += 1
-            wandb.log(
-                {
-                    "loss/train/step": loss.item(),
-                    "training/learning_rate": config.optimizer.lr,
-                    **{f"loss/train/{k}": v.item() for k, v in loss_dict.items()},
-                },
-                step=global_step,
-            )
-            loss_log_dict = {k: round(v.item(), 4) for k, v in loss_dict.items()}
-            logger.debug(f"Loss dict: {loss_log_dict}")
+            # Gradient accumulation and optimizer step.
+            accumulate_steps -= 1
+            if accumulate_steps == 0:
+                if config.optimizer.clip_grad_norm is not None:
+                    assert config.optimizer.clip_grad_norm > 0.0
+                    grad_norm = config.optimizer.clip_grad_norm
+                    torch.nn.utils.clip_grad_norm_(trainer.parameters(), max_norm=grad_norm)
+
+                optimizer.step()
+                global_step += 1
+                wandb.log(
+                    {
+                        "loss/train/step": loss.item(),
+                        "training/learning_rate": config.optimizer.lr,
+                        **{f"loss/train/{k}": v.item() for k, v in loss_dict.items()},
+                    },
+                    step=global_step,
+                )
+                loss_log_dict = {k: round(v.item(), 4) for k, v in loss_dict.items()}
+                logger.debug(f"Loss dict: {loss_log_dict}")
+
+                accumulate_steps = config.optimizer.accumulate_grad_batches
+                optimizer.zero_grad()
 
             # Evaluation and visualization on train / test datasets.
             if global_step % config.logging.num_test_iterations == 0:
