@@ -231,7 +231,7 @@ def train(
                 optimizer.zero_grad()
 
             # Evaluation and visualization on train / test datasets.
-            if global_step % config.logging.num_test_iterations == 0:
+            if global_step % config.logging.num_test_iterations == 0 and global_step > 0:
                 logger.info(f"Epoch {epoch}, Step {global_step}, Train Loss: {loss.item()}")
                 trainer.eval()
 
@@ -286,7 +286,11 @@ def train(
                 trainer.train()
 
             # Save checkpoint of model and training state.
-            if global_step % config.logging.num_ckpt_iterations == 0 and not args.disable_wandb:
+            if (
+                global_step % config.logging.num_ckpt_iterations == 0
+                and not args.disable_wandb
+                and global_step > 0
+            ):
                 assert wandb.run is not None, "WandB run must be initialized to save checkpoints."
                 logger.info(f"Saving checkpoint at step {global_step}")
                 state = {
