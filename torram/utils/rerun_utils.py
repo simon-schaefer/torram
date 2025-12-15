@@ -5,7 +5,21 @@ import rerun as rr
 import trimesh
 from jaxtyping import Bool, Float
 
-from torram.geometry.smpl import SMPL_EDGE_COLORS, SMPL_JOINT_NAMES, SMPL_KINTREE
+from torram.geometry.smpl import SMPL_EDGE_COLORS, SMPL_KINTREE
+
+NodeColorsType = Union[
+    Float[np.ndarray, "J 3"],
+    Float[np.ndarray, "3"],
+    Tuple[float, float, float],
+    None,
+]
+
+EdgeColorsType = Union[
+    Float[np.ndarray, "E 3"],
+    Float[np.ndarray, "3"],
+    Tuple[float, float, float],
+    None,
+]
 
 
 def log_body_skeleton(
@@ -13,9 +27,10 @@ def log_body_skeleton(
     joints: Float[np.ndarray, "J 3"],
     connections: List[Tuple[int, int]],
     mask: Optional[Bool[np.ndarray, "J"]] = None,
+    *,
     radius: float = 0.03,
-    colors: Union[Float[np.ndarray, "J 3"], Float[np.ndarray, "3"], None] = None,
-    edge_colors: Union[Float[np.ndarray, "E 3"], Float[np.ndarray, "3"], None] = None,
+    colors: NodeColorsType = None,
+    edge_colors: EdgeColorsType = None,
 ) -> None:
     """
     Log a body skeleton in rerun.
@@ -47,8 +62,10 @@ def log_smpl_skeleton(
     tag: str,
     joints: Float[np.ndarray, "J 3"],
     mask: Optional[Bool[np.ndarray, "J"]] = None,
+    *,
     radius: float = 0.03,
-    foot_contacts: Optional[Bool[np.ndarray, "2"]] = None,
+    colors: NodeColorsType = None,
+    edge_colors: EdgeColorsType = None,
 ) -> None:
     """
     Log an SMPL body skeleton in rerun.
@@ -57,19 +74,13 @@ def log_smpl_skeleton(
     @param joints: 3D joint positions.
     @param mask: Optional boolean mask indicating valid joints.
     @param radius: Radius of the joint spheres.
-    @param foot_contacts: Optional boolean array indicating foot contact states (right, left).
+    @param colors: Optional colors for the joints (as RGB values in [0, 1]).
+    @param edge_colors: Optional colors for the skeleton edges (as RGB values in [0, 1]).
     """
-    colors = np.ones((joints.shape[0], 3)) * 0.5
-
-    if foot_contacts is not None:
-        assert foot_contacts.shape == (2,)
-        contact_color = np.array([1.0, 0.0, 0.0])
-        if foot_contacts[0]:
-            foot_idx = SMPL_JOINT_NAMES["rightToeBase"]
-            colors[foot_idx] = contact_color
-        if foot_contacts[1]:
-            foot_idx = SMPL_JOINT_NAMES["leftToeBase"]
-            colors[foot_idx] = contact_color
+    if edge_colors is None:
+        edge_colors = np.array(SMPL_EDGE_COLORS)
+    if colors is None:
+        colors = np.ones((joints.shape[0], 3)) * 0.5
 
     log_body_skeleton(
         tag,
@@ -77,7 +88,7 @@ def log_smpl_skeleton(
         connections=SMPL_KINTREE,
         mask=mask,
         radius=radius,
-        edge_colors=np.array(SMPL_EDGE_COLORS),
+        edge_colors=edge_colors,
         colors=colors,
     )
 
