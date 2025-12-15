@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Mapping, Optional, Protocol, Sized, Tuple, U
 
 import numpy as np
 import torch
-from torch.utils.data import DataLoader, Dataset, Subset
+from torch.utils.data import ConcatDataset, DataLoader, Dataset, Subset
 
 from torram.utils.ops import collect_nested_leaf_lengths, slice_stacked
 
@@ -90,6 +90,7 @@ def get_batch_from_dataset(
     batch_size: int,
     indices: Optional[List[int]] = None,
     augment_index: int = 0,
+    seed: Optional[int] = None,
 ):
     """Get a batch from a dataset with the given batch size.
 
@@ -97,8 +98,11 @@ def get_batch_from_dataset(
     @param batch_size: The number of samples in the batch.
     @param indices: Optional list of indices to sample. If None, random indices will be chosen.
     @param augment_index: The iteration index for augmentation (if applicable).
+    @param seed: Optional random seed for sampling indices.
     """
     if indices is None:
+        if seed is not None:
+            random.seed(seed)
         indices = list(range(len(dataset)))
         indices = random.sample(indices, batch_size)
     batch = [dataset[i] for i in indices]
@@ -121,6 +125,26 @@ def get_batch_from_dataset(
         batch = augment_fn(batch, iteration=augment_index)
 
     return batch
+
+
+def get_test_batch_from_dataset(
+    dataset,
+    batch_size: int,
+    indices: Optional[List[int]] = None,
+    seed: Optional[int] = None,
+):
+    """Get a test batch from a dataset with the given batch size. This assumes the dataset
+    has a `get_train_test_split` method that returns train and test splits. If multiple
+    test sets are returned, the dataset is concatenated and indexed (either randomly or by provided indices).
+
+    @param dataset: The dataset to sample from.
+    @param batch_size: The number of samples in the batch.
+    @param indices: Optional list of indices to sample. If None, random indices will be chosen.
+    @param seed: Optional random seed for sampling indices.
+    """
+    _, test_datasets = get_train_test_split_w_ratio(dataset, test_ratio=0.1)
+    ds = ConcatDataset(list(test_datasets.values()))
+    return get_batch_from_dataset(ds, batch_size=batch_size, indices=indices, seed=seed)
 
 
 def chunk_and_save(
@@ -221,17 +245,29 @@ def get_train_test_split_w_config(
     @param dataset: The dataset to split.
     @param config: DataConfig containing the test split ratio.
     """
+    return get_train_test_split_w_ratio(dataset=dataset, test_ratio=config.test_split)
+
+
+def get_train_test_split_w_ratio(
+    dataset: torch.utils.data.Dataset,
+    test_ratio: float,
+) -> Tuple[torch.utils.data.Dataset, Mapping[str, torch.utils.data.Dataset]]:
+    """Get train and test splits of a dataset based test set ratio (if split undefined).
+
+    @param dataset: The dataset to split.
+    @param test_ratio: The ratio of the dataset to use for testing.
+    """
     if isinstance(dataset, torch.utils.data.ConcatDataset):
         dataset_train, datasets_test = train_test_split_concat_dataset(
             dataset=dataset,
-            test_ratio=config.test_split,
+            test_ratio=test_ratio,
         )
     elif hasattr(dataset, "get_train_test_split"):
         dataset_train, datasets_test = getattr(dataset, "get_train_test_split")()
         if not isinstance(datasets_test, dict):
             datasets_test = {"": datasets_test}
     else:
-        dataset_train, dataset_test_ = train_test_split(dataset, test_ratio=config.test_split)
+        dataset_train, dataset_test_ = train_test_split(dataset, test_ratio=test_ratio)
         dataset_test_ = cast(torch.utils.data.Dataset, dataset_test_)
         datasets_test = {"": dataset_test_}
 
