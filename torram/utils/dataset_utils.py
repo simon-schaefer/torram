@@ -127,6 +127,24 @@ def get_batch_from_dataset(
     return batch
 
 
+def get_train_batch_from_dataset(
+    dataset,
+    batch_size: int,
+    indices: Optional[List[int]] = None,
+    seed: Optional[int] = None,
+):
+    """Get a train batch from a dataset with the given batch size. This assumes the dataset
+    has a `get_train_test_split` method that returns train and test splits.
+
+    @param dataset: The dataset to sample from.
+    @param batch_size: The number of samples in the batch.
+    @param indices: Optional list of indices to sample. If None, random indices will be chosen.
+    @param seed: Optional random seed for sampling indices.
+    """
+    train_ds, _ = get_train_test_split_w_ratio(dataset, test_ratio=0.1)
+    return get_batch_from_dataset(train_ds, batch_size=batch_size, indices=indices, seed=seed)
+
+
 def get_test_batch_from_dataset(
     dataset,
     batch_size: int,
